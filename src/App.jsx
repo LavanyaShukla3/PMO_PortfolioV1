@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PortfolioGanttChart from './pages/PortfolioGanttChart';
+import ProgramGanttChart from './pages/ProgramGanttChart';
 import { validateData } from './services/dataService';
 import './App.css';
 
 function App() {
+    const [currentView, setCurrentView] = useState('Portfolio');
     const { isValid, errors } = validateData();
 
     if (!isValid) {
@@ -33,7 +35,24 @@ function App() {
 
             <main className="max-w-7xl mx-auto px-4 py-6">
                 <div className="bg-white shadow rounded-lg p-6">
-                    <PortfolioGanttChart />
+                    <div className="flex justify-end mb-4">
+                        <div className="flex items-center gap-4">
+                            <label className="font-medium">View:</label>
+                            <select
+                                value={currentView}
+                                onChange={(e) => setCurrentView(e.target.value)}
+                                className="border border-gray-300 rounded px-3 py-1 bg-white"
+                            >
+                                <option value="Portfolio">Portfolio</option>
+                                <option value="Program">Program Roadmap</option>
+                            </select>
+                        </div>
+                    </div>
+                    {currentView === 'Portfolio' ? (
+                        <PortfolioGanttChart />
+                    ) : (
+                        <ProgramGanttChart />
+                    )}
                 </div>
             </main>
         </div>
@@ -41,4 +60,3 @@ function App() {
 }
 
 export default App;
-
