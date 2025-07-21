@@ -1,46 +1,42 @@
 import portfolioData from './portfolioData.json';
 import investmentData from './investmentData.json';
+import programData from './ProgramData.json';
 
 /**
- * Maps portfolio data with investment data and processes it for the Gantt chart
+ * Processes roadmap data (portfolio or program) with investment data
+ * @param {Array} sourceData - The source data array (portfolio or program data)
  * @returns {Array} Processed data ready for the Gantt chart
  */
-export const processPortfolioData = () => {
+const processRoadmapData = (sourceData) => {
     try {
-        console.log('Processing portfolio data...');
-        console.log('Portfolio data count:', portfolioData?.length);
-        console.log('Investment data count:', investmentData?.length);
-
-        const processedData = portfolioData
-            .map(portfolio => {
-                // Find matching investment data
-                const investment = investmentData.find(inv => 
-                    inv.INV_EXT_ID === portfolio.CHILD_ID
+        return sourceData
+            .map(item => {
+                const investment = investmentData.find(inv =>
+                    inv.INV_EXT_ID === item.CHILD_ID &&
+                    inv.ROADMAP_ELEMENT === "Investment"
                 );
 
                 if (!investment) {
-                    console.log(`No investment found for CHILD_ID: ${portfolio.CHILD_ID}`);
+                    console.log(`No investment record for CHILD_ID: ${item.CHILD_ID}`);
                     return null;
                 }
 
-                // Get all SG3 milestones for this project
                 const milestones = investmentData
-                    .filter(inv => 
-                        inv.INV_EXT_ID === portfolio.CHILD_ID && 
-                        (inv.TASK_NAME?.toLowerCase().includes('sg3') || 
-                         inv.TASK_NAME?.toLowerCase().includes('go-live'))
+                    .filter(inv =>
+                        inv.INV_EXT_ID === item.CHILD_ID &&
+                        inv.TASK_NAME?.toLowerCase().includes('sg3')
                     )
                     .map(milestone => ({
                         date: milestone.TASK_START,
                         status: milestone.MILESTONE_STATUS,
-                        label: `${portfolio.CHILD_NAME}`,
+                        label: item.CHILD_NAME,
                         isSG3: true
                     }));
 
                 return {
-                    id: portfolio.CHILD_ID,
-                    name: investment.INVESTMENT_NAME || portfolio.CHILD_NAME,
-                    parentName: portfolio.COE_ROADMAP_PARENT_NAME, 
+                    id: item.CHILD_ID,
+                    name: investment.INVESTMENT_NAME || item.CHILD_NAME,
+                    parentName: item.COE_ROADMAP_PARENT_NAME,
                     startDate: investment.TASK_START,
                     endDate: investment.TASK_FINISH,
                     status: investment.INV_OVERALL_STATUS,
@@ -48,16 +44,23 @@ export const processPortfolioData = () => {
                     milestones
                 };
             })
-            .filter(Boolean) // Remove null entries
+            .filter(Boolean)
             .sort((a, b) => a.sortOrder - b.sortOrder);
-
-        console.log('Processed data count:', processedData.length);
-        return processedData;
     } catch (error) {
-        console.error('Error processing portfolio data:', error);
+        console.error('Error processing roadmap data:', error);
         return [];
     }
 };
+
+
+
+
+/**
+ * Maps portfolio data with investment data and processes it for the Gantt chart
+ * @returns {Array} Processed data ready for the Gantt chart
+ */
+export const processPortfolioData = () => processRoadmapData(portfolioData);
+export const processProgramData = () => processRoadmapData(programData);
 
 /**
  * Validates the data structure of both input files
