@@ -117,7 +117,7 @@ const GanttBar = ({
                 <MilestoneMarker
                     key={`${data.id}-milestone-${index}`}
                     x={milestone.x}
-                    y={y + 12 + ((labelLines.length - 1) * lineHeight/2)} // Center on bar
+                    y={y + 5 + ((labelLines.length - 1) * lineHeight/2)} // Center on bar
                     complete={milestone.status}
                     label={milestone.label}
                     isSG3={milestone.isSG3}
@@ -126,5 +126,4 @@ const GanttBar = ({
         </g>
     );
 };
-
 export default GanttBar;

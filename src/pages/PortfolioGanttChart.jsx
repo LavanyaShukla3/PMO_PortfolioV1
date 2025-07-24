@@ -7,8 +7,8 @@ import { processPortfolioData } from '../services/dataService';
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
 const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 40;
-const MILESTONE_LABEL_HEIGHT = 24;
+const BASE_BAR_HEIGHT = 30;
+const MILESTONE_LABEL_HEIGHT = 20;
 
 const PortfolioGanttChart = () => {
     const [processedData, setProcessedData] = useState([]);
@@ -47,14 +47,14 @@ const PortfolioGanttChart = () => {
     const calculateBarHeight = (project) => {
         const textLines = Math.ceil(project.name.length / 30);
         const hasMilestones = project.milestones && project.milestones.length > 0;
-        return BASE_BAR_HEIGHT + ((textLines - 1) * 16) + (hasMilestones ? MILESTONE_LABEL_HEIGHT : 0);
+        return BASE_BAR_HEIGHT + ((textLines - 1) * 12) + (hasMilestones ? MILESTONE_LABEL_HEIGHT : 0);
     };
 
     const getTotalHeight = () => {
         return filteredData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 16;
-        }, 50);
+            return total + barHeight + 8;
+        }, 40);
     };
 
     return (
@@ -86,12 +86,12 @@ const PortfolioGanttChart = () => {
                         borderRight: '1px solid #e5e7eb',
                     }}
                 >
-                    <div style={{ height: 40, padding: '8px', fontWeight: 600 }}>Portfolios</div>
+                    <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Portfolios</div>
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + 16, 20);
+                                .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
                             return (
                                 <div
                                     key={project.id}
@@ -119,6 +119,7 @@ const PortfolioGanttChart = () => {
                     ref={scrollContainerRef}
                     className="overflow-x-auto"
                     style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+
                 >
                     <TimelineAxis startDate={startDate} />
                     <div className="relative" style={{ width: totalWidth }}>
@@ -129,18 +130,18 @@ const PortfolioGanttChart = () => {
                             {filteredData.map((project, index) => {
                                 const yOffset = filteredData
                                     .slice(0, index)
-                                    .reduce((total, p) => total + calculateBarHeight(p) + 16, 20);
+                                    .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
 
-                                const startX = calculatePosition(projectStartDate, startDate) + LABEL_WIDTH;
-                                const endX = calculatePosition(projectEndDate, startDate) + LABEL_WIDTH;
+                                const startX = calculatePosition(projectStartDate, startDate) + 0;
+                                const endX = calculatePosition(projectEndDate, startDate) + 0;
                                 const width = endX - startX;
 
                                 const milestones = project.milestones.map(m => {
                                     const milestoneDate = parseDate(m.date);
-                                    const x = calculatePosition(milestoneDate, startDate) + LABEL_WIDTH;
+                                    const x = calculatePosition(milestoneDate, startDate);
                                     return { ...m, x };
                                 });
 
@@ -167,3 +168,4 @@ const PortfolioGanttChart = () => {
 };
 
 export default PortfolioGanttChart;
+

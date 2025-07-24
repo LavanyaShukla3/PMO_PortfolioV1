@@ -1,4 +1,4 @@
-import { parse, differenceInDays, addMonths, subMonths, startOfMonth } from 'date-fns';
+import { parse, differenceInDays, addMonths, subMonths, startOfMonth } from 'date-fns'; 
 
 // Constants for timeline configuration
 const MONTH_WIDTH = 100; // Width per month in pixels
@@ -13,6 +13,7 @@ const TOTAL_MONTHS = MONTHS_BEFORE + MONTHS_AFTER + 1; // +1 for current month
  * @param {string} dateString - Date in format "dd-MMM-yy" (e.g., "12-Aug-24")
  * @returns {Date|null} Parsed date or null if invalid
  */
+
 export const parseDate = (dateString) => {
     if (!dateString) return null;
     try {
@@ -62,6 +63,7 @@ export const getInitialViewportRange = () => {
  * @returns {number} X-position in pixels
  */
 export const calculatePosition = (date, startDate) => {
+    
     if (!date || !startDate) {
         console.warn('Missing date or startDate:', { date, startDate });
         return 0;
