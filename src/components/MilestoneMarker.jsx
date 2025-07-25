@@ -5,12 +5,35 @@ const MilestoneMarker = ({
     y,
     complete,   // This is your MILESTONE_STATUS
     label,
-    isSG3 = false
+    isSG3 = false,
+    labelPosition = 'below', // New prop for label position
+    shouldWrapText = false, // Whether to wrap text based on proximity
+    isGrouped = false, // Whether this is part of a same-date group
+    groupLabels = [], // Array of labels for same-date groups
+    truncatedLabel = '', // Truncated version of the label
+    hasAdjacentMilestones = false // Whether there are milestones within threshold
 }) => {
     const size = isSG3 ? 16 : 12;
     const yOffset = isSG3 ? -8 : -6;
-
     const isComplete = complete === 'Completed';
+
+    // Text wrapping logic
+    const wrapText = (text, shouldWrap) => {
+        if (!shouldWrap) return [text];
+        
+        const words = text.split(' ');
+        if (words.length <= 1) return [text];
+        
+        // For 2 words, split into 2 lines
+        if (words.length === 2) return words;
+        
+        // For 3 or more words, one word per line
+        return words;
+    };
+
+    const wrappedLines = wrapText(label, shouldWrapText);
+    const lineHeight = 12; // Height between lines
+    const totalTextHeight = wrappedLines.length * lineHeight;
 
 
     return (
@@ -24,26 +47,49 @@ const MilestoneMarker = ({
                 width={size} 
                 height={size} 
                 transform={`rotate(45, ${x + size / 2}, ${y + size / 2})`}
-                fill={isComplete ? '#005CB9' : 'white'}
-                stroke="#005CB9"
+                fill={isGrouped ? 'black' : (isComplete ? '#005CB9' : 'white')}
+                stroke={isGrouped ? 'white' : '#005CB9'}
                 strokeWidth={2}
                 className="cursor-pointer transition-colors duration-150"
             />
 
-            {/* Label below diamond (single line, centered) */}
-            <text
-                x={x + size / 2}
-                y={y + size + 12}
-                textAnchor="middle"
-                className="text-l fill-gray-600"
-                style={{
-                    fontSize: '10px',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    whiteSpace: 'nowrap'
-                }}
-            >
-                {label}
-            </text>
+            {/* Label rendering based on type */}
+            {isGrouped ? (
+                // Stacked milestone labels with commas
+                groupLabels.map((label, index) => (
+                    <text
+                        key={index}
+                        x={x + size / 2}
+                        y={y + size + 12 + (index * lineHeight)}
+                        textAnchor="middle"
+                        className="text-l fill-gray-600"
+                        style={{
+                            fontSize: '10px',
+                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                            whiteSpace: 'nowrap'
+                        }}
+                    >
+                        {label + (index < groupLabels.length - 1 ? ',' : '')}
+                    </text>
+                ))
+            ) : (
+                // Individual milestone label
+                <text
+                    x={x + size / 2}
+                    y={labelPosition === 'below' 
+                        ? y + size + 7
+                        : y - 15} // Increased vertical offset for above labels
+                    textAnchor="middle"
+                    className="text-l fill-gray-600"
+                    style={{
+                        fontSize: '10px',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        whiteSpace: 'nowrap'
+                    }}
+                >
+                    {truncatedLabel}
+                </text>
+            )}
         </g>
     );
 };

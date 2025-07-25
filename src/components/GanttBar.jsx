@@ -127,6 +127,12 @@ const GanttBar = ({
                     complete={milestone.status}
                     label={milestone.label}
                     isSG3={milestone.isSG3}
+                    labelPosition={milestone.labelPosition}
+                    shouldWrapText={milestone.shouldWrapText}
+                    isGrouped={milestone.isGrouped}
+                    groupLabels={milestone.groupLabels}
+                    truncatedLabel={milestone.truncatedLabel}
+                    hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                 />
             ))}
         </g>
