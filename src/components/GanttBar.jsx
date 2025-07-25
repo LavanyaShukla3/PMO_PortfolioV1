@@ -1,6 +1,13 @@
 import React from 'react';
 import MilestoneMarker from './MilestoneMarker';
 
+// Helper function to calculate bar height (copied from PortfolioGanttChart)
+const calculateBarHeight = (project) => {
+    const textLines = Math.ceil(project.name.length / 30);
+    const hasMilestones = project.milestones && project.milestones.length > 0;
+    return 30 + ((textLines - 1) * 12) + (hasMilestones ? 20 : 0); // Using the same constants as parent
+};
+
 const statusColors = {
     'Red': '#ef4444',    // Tailwind red-500
     'Amber': '#f59e0b',  // Tailwind amber-500
@@ -100,9 +107,8 @@ const GanttBar = ({
             {/* Main bar */}
             <rect
                 x={startX}
-                y={y}
+                y={y + (calculateBarHeight(data) - 24) / 2} // Center the bar vertically in its space
                 width={Math.max(width, 2)} // Minimum width of 2px
-                //height={24 + ((labelLines.length - 1) * lineHeight)} // Increase height for wrapped text
                 height={24}
                 rx={4}
                 fill={barColor}
@@ -117,7 +123,7 @@ const GanttBar = ({
                 <MilestoneMarker
                     key={`${data.id}-milestone-${index}`}
                     x={milestone.x}
-                    y={y + 5 + ((labelLines.length - 1) * lineHeight/2)} // Center on bar
+                    y={y + (calculateBarHeight(data) - 24) / 2 + 12} // Center with the bar
                     complete={milestone.status}
                     label={milestone.label}
                     isSG3={milestone.isSG3}

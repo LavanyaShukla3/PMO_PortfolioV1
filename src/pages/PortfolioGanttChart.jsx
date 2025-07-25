@@ -27,7 +27,10 @@ const PortfolioGanttChart = () => {
 
         // Initial scroll to current-1 to current+11 months
         if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollLeft = 3700;
+            // Calculate scroll position to show current month - 1
+            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
+            const scrollPosition = (monthsFromStart - 1) * MONTH_WIDTH;
+            scrollContainerRef.current.scrollLeft = scrollPosition;
         }
     }, []);
 
@@ -105,7 +108,10 @@ const PortfolioGanttChart = () => {
                                         fontSize: '14px',
                                         borderBottom: '1px solid #f3f4f6',
                                         width: '100%',
+                                        background: 'rgba(0, 0, 0, 0.015)',
+                                        outline: '1px solid rgba(0, 0, 0, 0.08)'
                                     }}
+                                    onClick={() => console.log('Box height:', calculateBarHeight(project))}
                                 >
                                     {project.name}
                                 </div>

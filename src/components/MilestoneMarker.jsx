@@ -35,7 +35,7 @@ const MilestoneMarker = ({
                 x={x + size / 2}
                 y={y + size + 12}
                 textAnchor="middle"
-                className="text-xs fill-gray-600"
+                className="text-l fill-gray-600"
                 style={{
                     fontSize: '10px',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
