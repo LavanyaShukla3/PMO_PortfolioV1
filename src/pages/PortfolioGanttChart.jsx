@@ -147,10 +147,48 @@ const PortfolioGanttChart = () => {
         }
     };
 
+    const calculateMilestoneLabelHeight = (milestones) => {
+        if (!milestones?.length) return 0;
+
+        // Process milestones to get their positions and grouping info
+        const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+        
+        let maxAboveHeight = 0;
+        let maxBelowHeight = 0;
+        const LINE_HEIGHT = 12;
+        const LABEL_PADDING = 15; // Padding for labels
+        const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels
+        const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels
+
+        processedMilestones.forEach(milestone => {
+            if (milestone.isGrouped) {
+                // For grouped milestones, calculate stacked height
+                const groupHeight = milestone.groupLabels.length * LINE_HEIGHT;
+                maxBelowHeight = Math.max(maxBelowHeight, groupHeight + LABEL_PADDING);
+            } else {
+                // For individual milestones
+                if (milestone.labelPosition === 'above') {
+                    maxAboveHeight = Math.max(maxAboveHeight, ABOVE_LABEL_OFFSET);
+                } else {
+                    maxBelowHeight = Math.max(maxBelowHeight, BELOW_LABEL_OFFSET);
+                }
+            }
+        });
+
+        // Return total height needed for milestone labels
+        return maxAboveHeight + maxBelowHeight;
+    };
+
     const calculateBarHeight = (project) => {
+        // Calculate height needed for project name wrapping
         const textLines = Math.ceil(project.name.length / 30);
-        const hasMilestones = project.milestones && project.milestones.length > 0;
-        return BASE_BAR_HEIGHT + ((textLines - 1) * 12) + (hasMilestones ? MILESTONE_LABEL_HEIGHT : 0);
+        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 12);
+        
+        // Calculate height needed for milestone labels
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones);
+        
+        // Return total height needed: name height + milestone label height + padding
+        return nameHeight + milestoneLabelHeight + 16; // Added 16px padding for better spacing
     };
 
     const getTotalHeight = () => {
@@ -233,25 +271,32 @@ const PortfolioGanttChart = () => {
                             width={totalWidth}
                             style={{ height: Math.max(400, getTotalHeight()) }}
                         >
-                            {/* Render Gantt bars first (bottom layer) */}
-                            <g className="gantt-bars-layer">
-                                {filteredData.map((project, index) => {
-                                    const yOffset = filteredData
-                                        .slice(0, index)
-                                        .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
+                            {filteredData.map((project, index) => {
+                                // Calculate cumulative Y offset including all previous projects' full heights
+                                const yOffset = filteredData
+                                    .slice(0, index)
+                                    .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
 
-                                    const projectStartDate = parseDate(project.startDate);
-                                    const projectEndDate = parseDate(project.endDate);
+                                const projectStartDate = parseDate(project.startDate);
+                                const projectEndDate = parseDate(project.endDate);
+                                const startX = calculatePosition(projectStartDate, startDate) + 0;
+                                const endX = calculatePosition(projectEndDate, startDate) + 0;
+                                const width = endX - startX;
 
-                                    const startX = calculatePosition(projectStartDate, startDate) + 0;
-                                    const endX = calculatePosition(projectEndDate, startDate) + 0;
-                                    const width = endX - startX;
+                                // Calculate the project's total height and center point
+                                const totalHeight = calculateBarHeight(project);
+                                const centerY = yOffset + totalHeight / 2;
 
-                                    return (
+                                // Process milestones with position information
+                                const milestones = processMilestonesWithPosition(project.milestones, startDate);
+
+                                return (
+                                    <g key={`project-${project.id}`} className="project-group">
+                                        {/* Render bar */}
                                         <rect
                                             key={`bar-${project.id}`}
                                             x={startX}
-                                            y={yOffset + (calculateBarHeight(project) - 24) / 2}
+                                            y={yOffset + (totalHeight - 24) / 2} // Center the bar in the available space
                                             width={Math.max(width, 2)}
                                             height={24}
                                             rx={4}
@@ -259,42 +304,27 @@ const PortfolioGanttChart = () => {
                                             className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
                                             onClick={() => console.log('Portfolio clicked:', project.id)}
                                         />
-                                    );
-                                })}
-                            </g>
 
-                            {/* Render milestones and labels in separate layer (top layer) */}
-                            <g className="milestones-layer">
-                                {filteredData.map((project, index) => {
-                                    const yOffset = filteredData
-                                        .slice(0, index)
-                                        .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
-
-                                    // Process milestones with position information
-                                    const milestones = processMilestonesWithPosition(project.milestones, startDate);
-
-                                    return (
-                                        <g key={`milestones-${project.id}`}>
-                                            {milestones.map((milestone, mIndex) => (
-                                                <MilestoneMarker
-                                                    key={`${project.id}-milestone-${mIndex}`}
-                                                    x={milestone.x}
-                                                    y={yOffset + (calculateBarHeight(project) - 24) / 2 + 12}
-                                                    complete={milestone.status}
-                                                    label={milestone.label}
-                                                    isSG3={milestone.isSG3}
-                                                    labelPosition={milestone.labelPosition}
-                                                    shouldWrapText={milestone.shouldWrapText}
-                                                    isGrouped={milestone.isGrouped}
-                                                    groupLabels={milestone.groupLabels}
-                                                    truncatedLabel={milestone.truncatedLabel}
-                                                    hasAdjacentMilestones={milestone.hasAdjacentMilestones}
-                                                />
-                                            ))}
-                                        </g>
-                                    );
-                                })}
-                            </g>
+                                        {/* Render milestones */}
+                                        {milestones.map((milestone, mIndex) => (
+                                            <MilestoneMarker
+                                                key={`${project.id}-milestone-${mIndex}`}
+                                                x={milestone.x}
+                                                y={yOffset + (totalHeight - 24) / 2 + 12} // Align with the center of the bar
+                                                complete={milestone.status}
+                                                label={milestone.label}
+                                                isSG3={milestone.isSG3}
+                                                labelPosition={milestone.labelPosition}
+                                                shouldWrapText={milestone.shouldWrapText}
+                                                isGrouped={milestone.isGrouped}
+                                                groupLabels={milestone.groupLabels}
+                                                truncatedLabel={milestone.truncatedLabel}
+                                                hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                                            />
+                                        ))}
+                                    </g>
+                                );
+                            })}
                         </svg>
                     </div>
                 </div>

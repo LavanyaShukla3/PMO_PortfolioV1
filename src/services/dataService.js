@@ -36,7 +36,9 @@ const processRoadmapData = (sourceData) => {
                 return {
                     id: item.CHILD_ID,
                     name: investment.INVESTMENT_NAME || item.CHILD_NAME,
+                    parentId: item.COE_ROADMAP_PARENT_ID,
                     parentName: item.COE_ROADMAP_PARENT_NAME,
+                    isProgram: item.COE_ROADMAP_PARENT_ID === item.CHILD_ID,
                     startDate: investment.TASK_START,
                     endDate: investment.TASK_FINISH,
                     status: investment.INV_OVERALL_STATUS,
@@ -45,7 +47,17 @@ const processRoadmapData = (sourceData) => {
                 };
             })
             .filter(Boolean)
-            .sort((a, b) => a.sortOrder - b.sortOrder);
+            .sort((a, b) => {
+                // First, sort by parent name to group programs together
+                if (a.parentName !== b.parentName) {
+                    return a.parentName.localeCompare(b.parentName);
+                }
+                // Within the same program, put the program itself first
+                if (a.isProgram && !b.isProgram) return -1;
+                if (!a.isProgram && b.isProgram) return 1;
+                // Finally, sort by sortOrder
+                return a.sortOrder - b.sortOrder;
+            });
     } catch (error) {
         console.error('Error processing roadmap data:', error);
         return [];
