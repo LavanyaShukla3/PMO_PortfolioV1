@@ -8,7 +8,7 @@ import { differenceInDays } from 'date-fns';
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
 const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 30;
+const BASE_BAR_HEIGHT = 10;
 const MILESTONE_LABEL_HEIGHT = 20;
 const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
 const MAX_LABEL_LENGTH = 5; // Maximum length before truncation

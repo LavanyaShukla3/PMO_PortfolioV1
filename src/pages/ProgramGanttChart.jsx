@@ -9,9 +9,9 @@ import programData from '../services/ProgramData.json';
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
 const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 30;
-const PROGRAM_BAR_HEIGHT = BASE_BAR_HEIGHT + 10; // Taller height for program bars
-const MILESTONE_LABEL_HEIGHT = 20;
+const BASE_BAR_HEIGHT = 20; // Reduced from 30
+const PROGRAM_BAR_HEIGHT = BASE_BAR_HEIGHT + 6; // Reduced height difference from 10 to 6
+const MILESTONE_LABEL_HEIGHT = 16; // Reduced from 20
 const DAYS_THRESHOLD = 16;
 const MAX_LABEL_LENGTH = 5;
 
@@ -158,10 +158,10 @@ const ProgramGanttChart = () => {
         
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
-        const LINE_HEIGHT = 12;
-        const LABEL_PADDING = 15;
-        const ABOVE_LABEL_OFFSET = 15;
-        const BELOW_LABEL_OFFSET = 20;
+        const LINE_HEIGHT = 10; // Reduced from 12
+        const LABEL_PADDING = 10; // Reduced from 15
+        const ABOVE_LABEL_OFFSET = 12; // Reduced from 15
+        const BELOW_LABEL_OFFSET = 14; // Reduced from 20
 
         processedMilestones.forEach(milestone => {
             if (milestone.isGrouped) {
@@ -183,16 +183,16 @@ const ProgramGanttChart = () => {
         const isProgram = project.isProgram;
         const baseHeight = isProgram ? PROGRAM_BAR_HEIGHT : BASE_BAR_HEIGHT;
         const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = baseHeight + ((textLines - 1) * 12);
+        const nameHeight = baseHeight + ((textLines - 1) * 10); // Reduced line height from 12 to 10
         const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones);
-        return nameHeight + milestoneLabelHeight + 16;
+        return nameHeight + milestoneLabelHeight + 8; // Reduced padding from 16 to 8
     };
 
     const getTotalHeight = () => {
         return filteredData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 8;
-        }, 40);
+            return total + barHeight + 4; // Reduced spacing between bars from 8 to 4
+        }, 20); // Reduced initial offset from 40 to 20
     };
 
     const isParentProgram = (project) => {
@@ -233,7 +233,7 @@ const ProgramGanttChart = () => {
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
+                                .reduce((total, p) => total + calculateBarHeight(p) + 4, 6); // Reduced spacing and initial offset
 
                             const isProgram = project.isProgram;
                             
@@ -278,7 +278,7 @@ const ProgramGanttChart = () => {
                             {filteredData.map((project, index) => {
                                 const yOffset = filteredData
                                     .slice(0, index)
-                                    .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
+                                    .reduce((total, p) => total + calculateBarHeight(p) + 4, 6); // Reduced spacing and initial offset
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
@@ -291,7 +291,7 @@ const ProgramGanttChart = () => {
                                 const milestones = processMilestonesWithPosition(project.milestones, startDate);
 
                                 const isProgram = project.isProgram;
-                                const barHeight = isProgram ? 34 : 24; // Taller bar for program
+                                const barHeight = isProgram ? 24 : 18; // Reduced heights (was 34/24)
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
