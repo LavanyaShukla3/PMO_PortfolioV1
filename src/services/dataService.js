@@ -39,6 +39,7 @@ const processRoadmapData = (sourceData) => {
                     parentId: item.COE_ROADMAP_PARENT_ID,
                     parentName: item.COE_ROADMAP_PARENT_NAME,
                     isProgram: item.COE_ROADMAP_PARENT_ID === item.CHILD_ID,
+                    isDrillable: item.If_parent_exist === 1,
                     startDate: investment.TASK_START,
                     endDate: investment.TASK_FINISH,
                     status: investment.INV_OVERALL_STATUS,

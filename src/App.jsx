@@ -6,6 +6,8 @@ import './App.css';
 
 function App() {
     const [currentView, setCurrentView] = useState('Portfolio');
+    const [selectedProjectId, setSelectedProjectId] = useState(null);
+    const [selectedProjectName, setSelectedProjectName] = useState('');
     const { isValid, errors } = validateData();
 
     if (!isValid) {
@@ -35,7 +37,13 @@ function App() {
                             <label className="font-medium">View:</label>
                             <select
                                 value={currentView}
-                                onChange={(e) => setCurrentView(e.target.value)}
+                                onChange={(e) => {
+                                    setCurrentView(e.target.value);
+                                    if (e.target.value === 'Portfolio') {
+                                        setSelectedProjectId(null);
+                                        setSelectedProjectName('');
+                                    }
+                                }}
                                 className="border border-gray-300 rounded px-2 py-1 bg-white"
                             >
                                 <option value="Portfolio">Portfolio</option>
@@ -49,9 +57,23 @@ function App() {
             <main className="max-w-7xl mx-auto px-4 py-6">
                 <div className="bg-white shadow rounded-lg p-6">
                     {currentView === 'Portfolio' ? (
-                        <PortfolioGanttChart />
+                        <PortfolioGanttChart 
+                            onDrillToProgram={(projectId, projectName) => {
+                                setSelectedProjectId(projectId);
+                                setSelectedProjectName(projectName);
+                                setCurrentView('Program');
+                            }}
+                        />
                     ) : (
-                        <ProgramGanttChart />
+                        <ProgramGanttChart 
+                            selectedProjectId={selectedProjectId}
+                            selectedProjectName={selectedProjectName}
+                            onBackToPortfolio={() => {
+                                setCurrentView('Portfolio');
+                                setSelectedProjectId(null);
+                                setSelectedProjectName('');
+                            }}
+                        />
                     )}
                 </div>
             </main>

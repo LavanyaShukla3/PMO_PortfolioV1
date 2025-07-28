@@ -129,7 +129,7 @@
      "CHILD_ID": "PR00007379",
      "CHILD_NAME": "NC GCC Whitepaper",
      "CLRTY_CHILD_TYPE": "Project",
-     "If_parent_exist": 1
+     "If_parent_exist": 0
     },
     {
      "HIERARCHY_EXTERNAL_ID": "H-0056",

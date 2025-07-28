@@ -9,8 +9,8 @@ import programData from '../services/ProgramData.json';
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
 const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 20; // Reduced from 30
-const PROGRAM_BAR_HEIGHT = BASE_BAR_HEIGHT + 6; // Reduced height difference from 10 to 6
+const BASE_BAR_HEIGHT = 40; // Reduced from 30
+const PROGRAM_BAR_HEIGHT = BASE_BAR_HEIGHT + 2; // Reduced height difference from 10 to 6
 const MILESTONE_LABEL_HEIGHT = 16; // Reduced from 20
 const DAYS_THRESHOLD = 16;
 const MAX_LABEL_LENGTH = 5;
@@ -102,7 +102,7 @@ const processMilestonesWithPosition = (milestones, startDate) => {
     });
 };
 
-const ProgramGanttChart = () => {
+const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('');
@@ -137,6 +137,16 @@ const ProgramGanttChart = () => {
             setFilteredData(programData); // Data is already sorted in dataService
         }
     }, [selectedProgram, processedData]);
+
+    // Auto-select program when a project is drilled down to
+    useEffect(() => {
+        if (selectedProjectId && processedData.length > 0) {
+            const project = processedData.find(item => item.id === selectedProjectId);
+            if (project) {
+                setSelectedProgram(project.parentName);
+            }
+        }
+    }, [selectedProjectId, processedData]);
 
     useEffect(() => {
         // Initial scroll to current-1 to current+11 months
@@ -201,6 +211,26 @@ const ProgramGanttChart = () => {
 
     return (
         <div className="w-full">
+            {/* Breadcrumb Navigation */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                    {onBackToPortfolio && (
+                        <button
+                            onClick={onBackToPortfolio}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                            ← Back to Portfolio
+                        </button>
+                    )}
+                    {selectedProjectName && (
+                        <span className="text-gray-400">/</span>
+                    )}
+                    {selectedProjectName && (
+                        <span className="font-medium">{selectedProjectName}</span>
+                    )}
+                </div>
+            </div>
+
             <div className="flex items-center gap-4 mb-4">
                 <label className="font-medium">Select Program:</label>
                 <select
@@ -304,6 +334,18 @@ const ProgramGanttChart = () => {
                                                 height={totalHeight}
                                                 fill="#f0f9ff"
                                                 opacity={0.5}
+                                            />
+                                        )}
+
+                                        {/* Highlight for drilled-down project */}
+                                        {selectedProjectId && project.id === selectedProjectId && (
+                                            <rect
+                                                x={0}
+                                                y={yOffset}
+                                                width={totalWidth}
+                                                height={totalHeight}
+                                                fill="#fef3c7"
+                                                opacity={0.3}
                                             />
                                         )}
 

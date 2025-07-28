@@ -110,7 +110,7 @@ const processMilestonesWithPosition = (milestones, startDate) => {
     });
   };
 
-const PortfolioGanttChart = () => {
+const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedParent, setSelectedParent] = useState('All');
@@ -247,11 +247,23 @@ const PortfolioGanttChart = () => {
                                         borderBottom: '1px solid #f3f4f6',
                                         width: '100%',
                                         background: 'rgba(0, 0, 0, 0.015)',
-                                        outline: '1px solid rgba(0, 0, 0, 0.08)'
+                                        outline: '1px solid rgba(0, 0, 0, 0.08)',
+                                        cursor: project.isDrillable ? 'pointer' : 'default'
                                     }}
-                                    onClick={() => console.log('Box height:', calculateBarHeight(project))}
+                                    onClick={() => {
+                                        if (project.isDrillable && onDrillToProgram) {
+                                            onDrillToProgram(project.id, project.name);
+                                        } else {
+                                            console.log('Box height:', calculateBarHeight(project));
+                                        }
+                                    }}
                                 >
-                                    {project.name}
+                                    <div className="flex items-center justify-between w-full">
+                                        <span>{project.name}</span>
+                                        {project.isDrillable && (
+                                            <span className="text-xs text-gray-500 ml-2">↗️</span>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -301,8 +313,16 @@ const PortfolioGanttChart = () => {
                                             height={24}
                                             rx={4}
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                            className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
-                                            onClick={() => console.log('Portfolio clicked:', project.id)}
+                                            className={`transition-opacity duration-150 hover:opacity-90 ${
+                                                project.isDrillable ? 'cursor-pointer' : 'cursor-default'
+                                            }`}
+                                            onClick={() => {
+                                                if (project.isDrillable && onDrillToProgram) {
+                                                    onDrillToProgram(project.id, project.name);
+                                                } else {
+                                                    console.log('Portfolio clicked:', project.id);
+                                                }
+                                            }}
                                         />
 
                                         {/* Render milestones */}
