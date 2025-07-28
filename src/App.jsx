@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PortfolioGanttChart from './pages/PortfolioGanttChart';
 import ProgramGanttChart from './pages/ProgramGanttChart';
+import SubProgramGanttChart from './pages/SubProgramGanttChart';
 import { validateData } from './services/dataService';
 import './App.css';
 
@@ -8,6 +9,8 @@ function App() {
     const [currentView, setCurrentView] = useState('Portfolio');
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState('');
+    const [selectedSubProgramId, setSelectedSubProgramId] = useState(null);
+    const [selectedSubProgramName, setSelectedSubProgramName] = useState('');
     const { isValid, errors } = validateData();
 
     if (!isValid) {
@@ -42,12 +45,15 @@ function App() {
                                     if (e.target.value === 'Portfolio') {
                                         setSelectedProjectId(null);
                                         setSelectedProjectName('');
+                                        setSelectedSubProgramId(null);
+                                        setSelectedSubProgramName('');
                                     }
                                 }}
                                 className="border border-gray-300 rounded px-2 py-1 bg-white"
                             >
                                 <option value="Portfolio">Portfolio</option>
                                 <option value="Program">Program Roadmap</option>
+                                <option value="SubProgram">Sub-Program Roadmap</option>
                             </select>
                         </div>
                     </div>
@@ -64,7 +70,7 @@ function App() {
                                 setCurrentView('Program');
                             }}
                         />
-                    ) : (
+                    ) : currentView === 'Program' ? (
                         <ProgramGanttChart 
                             selectedProjectId={selectedProjectId}
                             selectedProjectName={selectedProjectName}
@@ -72,6 +78,16 @@ function App() {
                                 setCurrentView('Portfolio');
                                 setSelectedProjectId(null);
                                 setSelectedProjectName('');
+                            }}
+                        />
+                    ) : (
+                        <SubProgramGanttChart 
+                            selectedSubProgramId={selectedSubProgramId}
+                            selectedSubProgramName={selectedSubProgramName}
+                            onBackToProgram={() => {
+                                setCurrentView('Program');
+                                setSelectedSubProgramId(null);
+                                setSelectedSubProgramName('');
                             }}
                         />
                     )}

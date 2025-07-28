@@ -1,6 +1,7 @@
 import portfolioData from './portfolioData.json';
 import investmentData from './investmentData.json';
 import programData from './ProgramData.json';
+import subProgramData from './SubProgramData.json';
 
 /**
  * Processes roadmap data (portfolio or program) with investment data
@@ -74,6 +75,56 @@ const processRoadmapData = (sourceData) => {
  */
 export const processPortfolioData = () => processRoadmapData(portfolioData);
 export const processProgramData = () => processRoadmapData(programData);
+
+/**
+ * Processes sub-program data with investment data for Gantt chart
+ * @returns {Array} Processed sub-program data ready for the Gantt chart
+ */
+export const processSubProgramData = () => {
+    try {
+        return subProgramData
+            .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
+            .map(item => {
+                // Find corresponding investment data
+                const investment = investmentData.find(inv => inv.INV_EXT_ID === item.CHILD_ID);
+                
+                if (!investment) {
+                    console.warn('No investment data found for sub-program:', item.CHILD_ID);
+                    return null;
+                }
+
+                // Get milestones for this sub-program
+                const milestones = investmentData
+                    .filter(inv => 
+                        inv.INV_EXT_ID === item.CHILD_ID &&
+                        (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+                    )
+                    .map(milestone => ({
+                        date: milestone.TASK_START,
+                        status: milestone.MILESTONE_STATUS,
+                        label: milestone.TASK_NAME,
+                        isSG3: false
+                    }));
+
+                return {
+                    id: item.CHILD_ID,
+                    name: investment.INVESTMENT_NAME || item.CHILD_NAME,
+                    parentId: item.COE_ROADMAP_PARENT_ID,
+                    parentName: item.COE_ROADMAP_PARENT_NAME,
+                    isStandalone: true,
+                    startDate: investment.TASK_START,
+                    endDate: investment.TASK_FINISH,
+                    status: investment.INV_OVERALL_STATUS,
+                    milestones
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+        console.error('Error processing sub-program data:', error);
+        return [];
+    }
+};
 
 /**
  * Validates the data structure of both input files
