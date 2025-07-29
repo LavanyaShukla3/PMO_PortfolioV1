@@ -9,9 +9,9 @@ import { differenceInDays } from 'date-fns';
 
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
-const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 20;
-const MILESTONE_LABEL_HEIGHT = 16;
+const LABEL_WIDTH = 180; // Reduced from 200
+const BASE_BAR_HEIGHT = 16; // Reduced from 20
+const MILESTONE_LABEL_HEIGHT = 12; // Reduced from 16
 const DAYS_THRESHOLD = 16;
 const MAX_LABEL_LENGTH = 5;
 
@@ -22,8 +22,8 @@ const phaseColors = {
     'Develop': '#84e291',
     'Deploy': '#e59edd',
     'Sustain': '#156082',
-    'Close': '#2f5f2d', // updated to dark green
-    'Unphased': '#bfbfbf'
+    'Close': '#006400', // dark green as specified
+    'Unphased': '#9ca3af' // grey as specified
 };
 
 const statusColors = {
@@ -44,11 +44,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     const { startDate } = getTimelineRange();
     const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
 
-    // Get unique sub-program names
+    // Get unique sub-program names (only the parent sub-programs)
     const subProgramNames = Array.from(new Set(subProgramData
         .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
         .map(item => item.COE_ROADMAP_PARENT_NAME)
-    ));
+    )).sort();
 
     useEffect(() => {
         const data = processSubProgramData();
@@ -111,6 +111,15 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
             inv.ROADMAP_ELEMENT === "Phases" && inv.TASK_NAME !== "Unphased" && 
             ['Initiate', 'Evaluate', 'Develop', 'Deploy', 'Sustain', 'Close'].includes(inv.TASK_NAME)
         );
+        
+        // Sort phased tasks by phase order
+        const phaseOrder = ['Initiate', 'Evaluate', 'Develop', 'Deploy', 'Sustain', 'Close'];
+        phasedTasks.sort((a, b) => {
+            const aIndex = phaseOrder.indexOf(a.TASK_NAME);
+            const bIndex = phaseOrder.indexOf(b.TASK_NAME);
+            return aIndex - bIndex;
+        });
+        
         return { unphasedTasks, phasedTasks };
     };
 
@@ -147,10 +156,10 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
-        const LINE_HEIGHT = 12;
-        const LABEL_PADDING = 15; // Padding for labels
-        const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels
-        const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels
+        const LINE_HEIGHT = 10; // Reduced from 12
+        const LABEL_PADDING = 10; // Reduced from 15
+        const ABOVE_LABEL_OFFSET = 10; // Reduced from 15
+        const BELOW_LABEL_OFFSET = 12; // Reduced from 20
 
         processedMilestones.forEach(milestone => {
             if (milestone.isGrouped) {
@@ -174,21 +183,24 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     const calculateBarHeight = (project) => {
         // Calculate height needed for project name wrapping
         const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 12);
+        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 10); // Reduced from 12
         
         // Calculate height needed for milestone labels
         const milestones = getMilestones(project.id);
         const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones);
         
-        // Return total height needed: name height + milestone label height + padding
-        return nameHeight + milestoneLabelHeight + 16; // Added 16px padding for better spacing
+        // Add extra height for sub-program rows to make them pop
+        const extraHeight = project.isSubProgram ? 10 : 0;
+        
+        // Return total height needed: name height + milestone label height + padding + extra height
+        return nameHeight + milestoneLabelHeight + 8 + extraHeight; // Reduced from 16px padding
     };
 
     const getTotalHeight = () => {
         return filteredData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 8;
-        }, 40);
+            return total + barHeight + 4; // Reduced from 8
+        }, 20); // Reduced from 40
     };
 
     const truncateLabel = (label, hasAdjacentMilestones) => {
@@ -334,7 +346,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
+                                .reduce((total, p) => total + calculateBarHeight(p) + 4, 6); // Reduced spacing
 
                             return (
                                 <div
@@ -345,17 +357,26 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                         height: calculateBarHeight(project),
                                         display: 'flex',
                                         alignItems: 'center',
-                                        paddingLeft: '8px',
-                                        fontSize: '14px',
+                                        paddingLeft: project.isChild ? '20px' : '6px', // Reduced padding
+                                        fontSize: '12px', // Reduced from 14px
                                         borderBottom: '1px solid #f3f4f6',
                                         width: '100%',
-                                        background: 'rgba(0, 0, 0, 0.015)',
+                                        background: project.isSubProgram ? '#f0f9ff' : 'rgba(0, 0, 0, 0.015)',
                                         outline: '1px solid rgba(0, 0, 0, 0.08)',
-                                        cursor: 'default'
+                                        cursor: 'default',
+                                        fontWeight: project.isSubProgram ? '700' : '400',
+                                        textTransform: project.isSubProgram ? 'uppercase' : 'none',
+                                        color: project.isSubProgram ? '#1e40af' : 'inherit'
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <span>{project.name}</span>
+                                        {project.isChild && (
+                                            <span className="text-xs text-gray-500 ml-2"></span>
+                                        )}
+                                        {project.isSubProgram && (
+                                            <span className="text-xs text-gray-500 ml-2">📌</span>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -378,7 +399,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                             {filteredData.map((project, index) => {
                                 const yOffset = filteredData
                                     .slice(0, index)
-                                    .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
+                                    .reduce((total, p) => total + calculateBarHeight(p) + 4, 6); // Reduced spacing
 
                                 const totalHeight = calculateBarHeight(project);
                                 
@@ -392,59 +413,100 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                 const nextMilestone = getNextUpcomingMilestone(milestones);
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
-                                        {/* Render a simple Gantt bar based on project start/end dates */}
-                                        {project.startDate && project.endDate && (
+                                        {/* Background highlighting for sub-program rows */}
+                                        {project.isSubProgram && (
                                             <rect
-                                                key={`bar-${project.id}`}
-                                                x={calculatePosition(parseDate(project.startDate), startDate)}
-                                                y={yOffset + (totalHeight - 18) / 2}
-                                                width={Math.max(calculatePosition(parseDate(project.endDate), startDate) - calculatePosition(parseDate(project.startDate), startDate), 2)}
-                                                height={18}
-                                                rx={4}
-                                                fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                                className="transition-opacity duration-150 hover:opacity-90"
+                                                x={0}
+                                                y={yOffset}
+                                                width={totalWidth}
+                                                height={totalHeight}
+                                                fill="#f0f9ff"
+                                                opacity={0.3}
                                             />
                                         )}
+                                        
+                                        {/* Label above the bar for sub-programs */}
+                                        {project.isSubProgram && (
+                                            <text
+                                                x={totalWidth / 2}
+                                                y={yOffset + 8}
+                                                textAnchor="middle"
+                                                style={{
+                                                    fontSize: '10px',
+                                                    fontWeight: '600',
+                                                    fill: '#1e40af',
+                                                    fontFamily: 'system-ui, -apple-system, sans-serif'
+                                                }}
+                                            >
+                                                SUB-PROGRAM
+                                            </text>
+                                        )}
+                                        
+                                        {/* Render Gantt bars based on phase structure */}
+                                        {(() => {
+                                            // If there are unphased tasks, render a single grey bar
+                                            if (unphasedTasks.length > 0) {
+                                                const unphasedTask = unphasedTasks[0];
+                                                const startX = calculatePosition(parseDate(unphasedTask.TASK_START), startDate);
+                                                const endX = calculatePosition(parseDate(unphasedTask.TASK_FINISH), startDate);
+                                                const width = endX - startX;
+                                                
+                                                return (
+                                                    <rect
+                                                        key={`unphased-bar-${project.id}`}
+                                                        x={startX}
+                                                        y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                        width={Math.max(width, 2)}
+                                                        height={project.isSubProgram ? 18 : 14}
+                                                        rx={4}
+                                                        fill={phaseColors.Unphased}
+                                                        className="transition-opacity duration-150 hover:opacity-90"
+                                                    />
+                                                );
+                                            }
+                                            
+                                            // If there are phased tasks, render sequential phase bars
+                                            if (phasedTasks.length > 0) {
+                                                return phasedTasks.map((task, taskIndex) => {
+                                                    const startX = calculatePosition(parseDate(task.TASK_START), startDate);
+                                                    const endX = calculatePosition(parseDate(task.TASK_FINISH), startDate);
+                                                    const width = endX - startX;
+                                                    
+                                                    return (
+                                                        <rect
+                                                            key={`phased-bar-${project.id}-${taskIndex}`}
+                                                            x={startX}
+                                                            y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                            width={Math.max(width, 2)}
+                                                            height={project.isSubProgram ? 18 : 14}
+                                                            rx={4}
+                                                            fill={phaseColors[task.TASK_NAME] || phaseColors.Unphased}
+                                                            className="transition-opacity duration-150 hover:opacity-90"
+                                                        />
+                                                    );
+                                                });
+                                            }
+                                            
+                                            // Fallback: render a simple bar based on project start/end dates
+                                            if (project.startDate && project.endDate) {
+                                                return (
+                                                    <rect
+                                                        key={`fallback-bar-${project.id}`}
+                                                        x={calculatePosition(parseDate(project.startDate), startDate)}
+                                                        y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                        width={Math.max(calculatePosition(parseDate(project.endDate), startDate) - calculatePosition(parseDate(project.startDate), startDate), 2)}
+                                                        height={project.isSubProgram ? 18 : 14}
+                                                        rx={4}
+                                                        fill={project.status ? statusColors[project.status] : statusColors.Grey}
+                                                        className="transition-opacity duration-150 hover:opacity-90"
+                                                    />
+                                                );
+                                            }
+                                            
+                                            return null;
+                                        })()}
 
-                                        {/* Render Unphased Tasks */}
-                                        {unphasedTasks.map((task, taskIndex) => {
-                                            const startX = calculatePosition(parseDate(task.TASK_START), startDate);
-                                            const endX = calculatePosition(parseDate(task.TASK_FINISH), startDate);
-                                            const width = endX - startX;
 
-                                            return (
-                                                <rect
-                                                    key={`unphased-${taskIndex}`}
-                                                    x={startX}
-                                                    y={yOffset + (totalHeight - 18) / 2}
-                                                    width={Math.max(width, 2)}
-                                                    height={18}
-                                                    rx={4}
-                                                    fill={phaseColors.Unphased}
-                                                    className="transition-opacity duration-150 hover:opacity-90"
-                                                />
-                                            );
-                                        })}
-
-                                        {/* Render Phased Tasks */}
-                                        {phasedTasks.map((task, taskIndex) => {
-                                            const startX = calculatePosition(parseDate(task.TASK_START), startDate);
-                                            const endX = calculatePosition(parseDate(task.TASK_FINISH), startDate);
-                                            const width = endX - startX;
-
-                                            return (
-                                                <rect
-                                                    key={`phased-${taskIndex}`}
-                                                    x={startX}
-                                                    y={yOffset + (totalHeight - 18) / 2}
-                                                    width={Math.max(width, 2)}
-                                                    height={18}
-                                                    rx={4}
-                                                    fill={phaseColors[task.TASK_NAME] || phaseColors.Unphased}
-                                                    className="transition-opacity duration-150 hover:opacity-90"
-                                                />
-                                            );
-                                        })}
 
                                         {/* Process and render milestones with complex positioning logic */}
                                         {(() => {
@@ -454,7 +516,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                 <MilestoneMarker
                                                     key={`${project.id}-milestone-${mIndex}`}
                                                     x={milestone.x}
-                                                    y={yOffset + (totalHeight - 18) / 2 + 9}
+                                                    y={yOffset + (totalHeight - 14) / 2 + 7}
                                                     complete={milestone.status}
                                                     label={milestone.label}
                                                     isSG3={milestone.isSG3}

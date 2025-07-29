@@ -82,44 +82,98 @@ export const processProgramData = () => processRoadmapData(programData);
  */
 export const processSubProgramData = () => {
     try {
-        return subProgramData
-            .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
-            .map(item => {
-                // Find corresponding investment data
-                const investment = investmentData.find(inv => inv.INV_EXT_ID === item.CHILD_ID);
+        const processedData = [];
+        
+        // Get unique sub-program parent IDs
+        const uniqueParentIds = [...new Set(subProgramData.map(item => item.COE_ROADMAP_PARENT_ID))];
+        
+        uniqueParentIds.forEach(parentId => {
+            const parentItems = subProgramData.filter(item => item.COE_ROADMAP_PARENT_ID === parentId);
+            
+            // Find the sub-program itself (where CHILD_ID === COE_ROADMAP_PARENT_ID)
+            const subProgramItem = parentItems.find(item => item.CHILD_ID === item.COE_ROADMAP_PARENT_ID);
+            
+            if (subProgramItem) {
+                // Process the sub-program itself
+                const subProgramInvestment = investmentData.find(inv => inv.INV_EXT_ID === subProgramItem.CHILD_ID);
                 
-                if (!investment) {
-                    console.warn('No investment data found for sub-program:', item.CHILD_ID);
-                    return null;
+                if (subProgramInvestment) {
+                    const subProgramMilestones = investmentData
+                        .filter(inv => 
+                            inv.INV_EXT_ID === subProgramItem.CHILD_ID &&
+                            (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+                        )
+                        .map(milestone => ({
+                            date: milestone.TASK_START,
+                            status: milestone.MILESTONE_STATUS,
+                            label: milestone.TASK_NAME,
+                            isSG3: false
+                        }));
+
+                    processedData.push({
+                        id: subProgramItem.CHILD_ID,
+                        name: subProgramInvestment.INVESTMENT_NAME || subProgramItem.CHILD_NAME,
+                        parentId: subProgramItem.COE_ROADMAP_PARENT_ID,
+                        parentName: subProgramItem.COE_ROADMAP_PARENT_NAME,
+                        isSubProgram: true, // This is the sub-program itself
+                        isChild: false,
+                        startDate: subProgramInvestment.TASK_START,
+                        endDate: subProgramInvestment.TASK_FINISH,
+                        status: subProgramInvestment.INV_OVERALL_STATUS,
+                        milestones: subProgramMilestones
+                    });
                 }
+                
+                // Process child projects (where CHILD_ID !== COE_ROADMAP_PARENT_ID)
+                const childItems = parentItems.filter(item => item.CHILD_ID !== item.COE_ROADMAP_PARENT_ID);
+                
+                childItems.forEach(childItem => {
+                    const childInvestment = investmentData.find(inv => inv.INV_EXT_ID === childItem.CHILD_ID);
+                    
+                    if (childInvestment) {
+                        const childMilestones = investmentData
+                            .filter(inv => 
+                                inv.INV_EXT_ID === childItem.CHILD_ID &&
+                                (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+                            )
+                            .map(milestone => ({
+                                date: milestone.TASK_START,
+                                status: milestone.MILESTONE_STATUS,
+                                label: milestone.TASK_NAME,
+                                isSG3: false
+                            }));
 
-                // Get milestones for this sub-program
-                const milestones = investmentData
-                    .filter(inv => 
-                        inv.INV_EXT_ID === item.CHILD_ID &&
-                        (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
-                    )
-                    .map(milestone => ({
-                        date: milestone.TASK_START,
-                        status: milestone.MILESTONE_STATUS,
-                        label: milestone.TASK_NAME,
-                        isSG3: false
-                    }));
-
-                return {
-                    id: item.CHILD_ID,
-                    name: investment.INVESTMENT_NAME || item.CHILD_NAME,
-                    parentId: item.COE_ROADMAP_PARENT_ID,
-                    parentName: item.COE_ROADMAP_PARENT_NAME,
-                    isStandalone: true,
-                    startDate: investment.TASK_START,
-                    endDate: investment.TASK_FINISH,
-                    status: investment.INV_OVERALL_STATUS,
-                    milestones
-                };
-            })
+                        processedData.push({
+                            id: childItem.CHILD_ID,
+                            name: childInvestment.INVESTMENT_NAME || childItem.CHILD_NAME,
+                            parentId: childItem.COE_ROADMAP_PARENT_ID,
+                            parentName: childItem.COE_ROADMAP_PARENT_NAME,
+                            isSubProgram: false, // This is a child project
+                            isChild: true,
+                            startDate: childInvestment.TASK_START,
+                            endDate: childInvestment.TASK_FINISH,
+                            status: childInvestment.INV_OVERALL_STATUS,
+                            milestones: childMilestones
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Sort the data to maintain hierarchy: sub-program first, then children
+        return processedData
             .filter(Boolean)
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => {
+                // First, sort by parent name to group sub-programs together
+                if (a.parentName !== b.parentName) {
+                    return a.parentName.localeCompare(b.parentName);
+                }
+                // Within the same sub-program, put the sub-program itself first
+                if (a.isSubProgram && !b.isSubProgram) return -1;
+                if (!a.isSubProgram && b.isSubProgram) return 1;
+                // Finally, sort children by name
+                return a.name.localeCompare(b.name);
+            });
     } catch (error) {
         console.error('Error processing sub-program data:', error);
         return [];

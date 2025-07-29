@@ -13,8 +13,8 @@ const MilestoneMarker = ({
     truncatedLabel = '', // Truncated version of the label
     hasAdjacentMilestones = false // Whether there are milestones within threshold
 }) => {
-    const size = isSG3 ? 16 : 12;
-    const yOffset = isSG3 ? -8 : -6;
+    const size = isSG3 ? 14 : 10; // Reduced sizes
+    const yOffset = isSG3 ? -7 : -5; // Adjusted offsets
     const isComplete = complete === 'Completed';
 
     // Text wrapping logic
@@ -32,7 +32,7 @@ const MilestoneMarker = ({
     };
 
     const wrappedLines = wrapText(label, shouldWrapText);
-    const lineHeight = 12; // Height between lines
+    const lineHeight = 9; // Reduced height between lines
     const totalTextHeight = wrappedLines.length * lineHeight;
 
 
@@ -60,11 +60,11 @@ const MilestoneMarker = ({
                     <text
                         key={index}
                         x={x + size / 2}
-                        y={y + size + 12 + (index * lineHeight)}
+                        y={y + size + 12 + (index * lineHeight)} // Increased spacing from 8 to 12
                         textAnchor="middle"
                         className="text-l fill-gray-600"
                         style={{
-                            fontSize: '10px',
+                            fontSize: '9px', // Reduced font size
                             fontFamily: 'system-ui, -apple-system, sans-serif',
                             whiteSpace: 'nowrap'
                         }}
@@ -76,13 +76,13 @@ const MilestoneMarker = ({
                 // Individual milestone label
                 <text
                     x={x + size / 2}
-                    y={labelPosition === 'below' 
-                        ? y + size + 7
-                        : y - 15} // Increased vertical offset for above labels
+                                            y={labelPosition === 'below' 
+                            ? y + size + 8
+                            : y - 15} // Increased spacing: below from 5 to 8, above from 12 to 15
                     textAnchor="middle"
                     className="text-l fill-gray-600"
                     style={{
-                        fontSize: '10px',
+                        fontSize: '9px', // Reduced font size
                         fontFamily: 'system-ui, -apple-system, sans-serif',
                         whiteSpace: 'nowrap'
                     }}

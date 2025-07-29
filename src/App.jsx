@@ -35,7 +35,10 @@ function App() {
             <header className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 py-4">
                     <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-bold text-gray-900">Portfolio Roadmap</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {currentView} Roadmap
+                        </h1>
+
                         <div className="flex items-center gap-2">
                             <label className="font-medium">View:</label>
                             <select
@@ -51,7 +54,7 @@ function App() {
                                 }}
                                 className="border border-gray-300 rounded px-2 py-1 bg-white"
                             >
-                                <option value="Portfolio">Portfolio</option>
+                                <option value="Portfolio">Portfolio Roadmap</option>
                                 <option value="Program">Program Roadmap</option>
                                 <option value="SubProgram">Sub-Program Roadmap</option>
                             </select>
@@ -63,7 +66,7 @@ function App() {
             <main className="max-w-7xl mx-auto px-4 py-6">
                 <div className="bg-white shadow rounded-lg p-6">
                     {currentView === 'Portfolio' ? (
-                        <PortfolioGanttChart 
+                        <PortfolioGanttChart
                             onDrillToProgram={(projectId, projectName) => {
                                 setSelectedProjectId(projectId);
                                 setSelectedProjectName(projectName);
@@ -71,7 +74,7 @@ function App() {
                             }}
                         />
                     ) : currentView === 'Program' ? (
-                        <ProgramGanttChart 
+                        <ProgramGanttChart
                             selectedProjectId={selectedProjectId}
                             selectedProjectName={selectedProjectName}
                             onBackToPortfolio={() => {
@@ -81,7 +84,7 @@ function App() {
                             }}
                         />
                     ) : (
-                        <SubProgramGanttChart 
+                        <SubProgramGanttChart
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
                             onBackToProgram={() => {
