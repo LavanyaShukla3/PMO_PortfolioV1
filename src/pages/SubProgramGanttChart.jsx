@@ -5,6 +5,7 @@ import { getTimelineRange, parseDate, calculatePosition } from '../utils/dateUti
 import { processSubProgramData } from '../services/dataService';
 import subProgramData from '../services/SubProgramData.json';
 import investmentData from '../services/investmentData.json';
+import { differenceInDays } from 'date-fns';
 
 const MONTH_WIDTH = 100;
 const TOTAL_MONTHS = 73;
@@ -21,7 +22,7 @@ const phaseColors = {
     'Develop': '#84e291',
     'Deploy': '#e59edd',
     'Sustain': '#156082',
-    'Close': '#006400', // dark green
+    'Close': '#2f5f2d', // updated to dark green
     'Unphased': '#bfbfbf'
 };
 
@@ -103,17 +104,13 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     // Group tasks by type (Unphased vs Phased)
     const processTasks = (investmentData) => {
         const unphasedTasks = investmentData.filter(inv => 
-            inv.ROADMAP_ELEMENT === "Investment" && inv.TASK_NAME === "Unphased"
+            inv.ROADMAP_ELEMENT === "Phases" && inv.TASK_NAME === "Unphased"
         );
         
         const phasedTasks = investmentData.filter(inv => 
-            inv.ROADMAP_ELEMENT === "Investment" && inv.TASK_NAME !== "Unphased" && 
+            inv.ROADMAP_ELEMENT === "Phases" && inv.TASK_NAME !== "Unphased" && 
             ['Initiate', 'Evaluate', 'Develop', 'Deploy', 'Sustain', 'Close'].includes(inv.TASK_NAME)
         );
-
-        console.log('Unphased tasks:', unphasedTasks.length);
-        console.log('Phased tasks:', phasedTasks.length);
-
         return { unphasedTasks, phasedTasks };
     };
 
@@ -128,8 +125,6 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
             label: milestone.TASK_NAME,
             isSG3: false
         }));
-        
-        console.log('Milestones for', subProgramId, ':', milestones.length);
         return milestones;
     };
 
@@ -144,17 +139,145 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         return upcomingMilestones.length > 0 ? upcomingMilestones[0] : null;
     };
 
+    const calculateMilestoneLabelHeight = (milestones) => {
+        if (!milestones?.length) return 0;
+
+        // Process milestones to get their positions and grouping info
+        const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+        
+        let maxAboveHeight = 0;
+        let maxBelowHeight = 0;
+        const LINE_HEIGHT = 12;
+        const LABEL_PADDING = 15; // Padding for labels
+        const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels
+        const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels
+
+        processedMilestones.forEach(milestone => {
+            if (milestone.isGrouped) {
+                // For grouped milestones, calculate stacked height
+                const groupHeight = milestone.groupLabels.length * LINE_HEIGHT;
+                maxBelowHeight = Math.max(maxBelowHeight, groupHeight + LABEL_PADDING);
+            } else {
+                // For individual milestones
+                if (milestone.labelPosition === 'above') {
+                    maxAboveHeight = Math.max(maxAboveHeight, ABOVE_LABEL_OFFSET);
+                } else {
+                    maxBelowHeight = Math.max(maxBelowHeight, BELOW_LABEL_OFFSET);
+                }
+            }
+        });
+
+        // Return total height needed for milestone labels
+        return maxAboveHeight + maxBelowHeight;
+    };
+
     const calculateBarHeight = (project) => {
+        // Calculate height needed for project name wrapping
         const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 10);
-        return nameHeight + 8;
+        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 12);
+        
+        // Calculate height needed for milestone labels
+        const milestones = getMilestones(project.id);
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones);
+        
+        // Return total height needed: name height + milestone label height + padding
+        return nameHeight + milestoneLabelHeight + 16; // Added 16px padding for better spacing
     };
 
     const getTotalHeight = () => {
         return filteredData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 4;
-        }, 20);
+            return total + barHeight + 8;
+        }, 40);
+    };
+
+    const truncateLabel = (label, hasAdjacentMilestones) => {
+        // Only truncate if there are adjacent milestones and length exceeds max
+        if (!hasAdjacentMilestones || label.length <= MAX_LABEL_LENGTH) return label;
+        return label.substring(0, MAX_LABEL_LENGTH) + '...';
+    };
+
+    const processMilestonesWithPosition = (milestones, startDate) => {
+        if (!milestones?.length) return [];
+        
+        // Sort milestones by date
+        const sortedMilestones = [...milestones].sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return dateA - dateB;
+        });
+
+        // First pass: calculate x positions and group by date
+        const milestonesWithX = [];
+        const sameDateGroups = new Map(); // Map of date string to array of milestones
+
+        sortedMilestones.forEach(milestone => {
+            const milestoneDate = parseDate(milestone.date);
+            const x = calculatePosition(milestoneDate, startDate);
+            const dateStr = milestoneDate.toISOString();
+            
+            const milestoneWithX = { ...milestone, x, date: milestoneDate };
+            milestonesWithX.push(milestoneWithX);
+
+            // Group milestones by exact date
+            if (!sameDateGroups.has(dateStr)) {
+                sameDateGroups.set(dateStr, []);
+            }
+            sameDateGroups.get(dateStr).push(milestoneWithX);
+        });
+
+        // Second pass: process groups and determine positioning
+        let lastPosition = 'below';
+        
+        return milestonesWithX.map((milestone, index) => {
+            const dateStr = milestone.date.toISOString();
+            const sameDateMilestones = sameDateGroups.get(dateStr);
+            const isPartOfGroup = sameDateMilestones.length > 1;
+
+            // Check for adjacent milestones (within 5 days)
+            const prevMilestone = index > 0 ? milestonesWithX[index - 1] : null;
+            const nextMilestone = index < milestonesWithX.length - 1 ? milestonesWithX[index + 1] : null;
+            
+            const distToPrev = prevMilestone ? Math.abs(differenceInDays(milestone.date, prevMilestone.date)) : Infinity;
+            const distToNext = nextMilestone ? Math.abs(differenceInDays(milestone.date, nextMilestone.date)) : Infinity;
+            
+            const hasAdjacentMilestones = distToPrev <= DAYS_THRESHOLD || distToNext <= DAYS_THRESHOLD;
+
+            // Handle same-date groups
+            if (isPartOfGroup) {
+                // Process each milestone in the group with potential truncation
+                const groupLabels = sameDateMilestones.map(m => 
+                    truncateLabel(m.label, hasAdjacentMilestones)
+                );
+
+                return {
+                    ...milestone,
+                    isGrouped: true,
+                    groupLabels, // Array of labels for vertical stacking
+                    labelPosition: 'below',
+                    shouldWrapText: false,
+                    hasAdjacentMilestones
+                };
+            }
+
+            // Handle individual milestones
+            // Determine label position based on proximity to previous milestone
+            let labelPosition = 'below';
+            if (prevMilestone && distToPrev <= DAYS_THRESHOLD) {
+                labelPosition = lastPosition === 'below' ? 'above' : 'below';
+            }
+            
+            lastPosition = labelPosition;
+            
+            return { 
+                ...milestone,
+                isGrouped: false,
+                labelPosition,
+                shouldWrapText: false, // We're not using wrapping anymore
+                truncatedLabel: truncateLabel(milestone.label, hasAdjacentMilestones),
+                hasAdjacentMilestones
+            };
+        });
     };
 
     return (
@@ -211,7 +334,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + 4, 6);
+                                .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
 
                             return (
                                 <div
@@ -255,7 +378,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                             {filteredData.map((project, index) => {
                                 const yOffset = filteredData
                                     .slice(0, index)
-                                    .reduce((total, p) => total + calculateBarHeight(p) + 4, 6);
+                                    .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
 
                                 const totalHeight = calculateBarHeight(project);
                                 
@@ -265,14 +388,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                 // Get investment data for this sub-program
                                 const investmentData = getInvestmentData(project.id);
                                 const { unphasedTasks, phasedTasks } = processTasks(investmentData);
-                                const milestones = project.milestones || [];
+                                const milestones = getMilestones(project.id);
                                 const nextMilestone = getNextUpcomingMilestone(milestones);
-
-                                console.log('Investment data count:', investmentData.length);
-                                console.log('Unphased tasks:', unphasedTasks.length);
-                                console.log('Phased tasks:', phasedTasks.length);
-                                console.log('Milestones:', milestones.length);
-
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
                                         {/* Render a simple Gantt bar based on project start/end dates */}
@@ -329,28 +446,27 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                             );
                                         })}
 
-                                        {/* Render Milestones */}
-                                        {milestones.map((milestone, mIndex) => {
-                                            const milestoneX = calculatePosition(parseDate(milestone.date), startDate);
-                                            const isNextMilestone = nextMilestone && milestone.date === nextMilestone.date;
-
-                                            return (
+                                        {/* Process and render milestones with complex positioning logic */}
+                                        {(() => {
+                                            const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+                                            
+                                            return processedMilestones.map((milestone, mIndex) => (
                                                 <MilestoneMarker
                                                     key={`${project.id}-milestone-${mIndex}`}
-                                                    x={milestoneX}
+                                                    x={milestone.x}
                                                     y={yOffset + (totalHeight - 18) / 2 + 9}
                                                     complete={milestone.status}
-                                                    label={isNextMilestone ? milestone.label : ''}
+                                                    label={milestone.label}
                                                     isSG3={milestone.isSG3}
-                                                    labelPosition="below"
-                                                    shouldWrapText={false}
-                                                    isGrouped={false}
-                                                    groupLabels={[]}
-                                                    truncatedLabel={isNextMilestone ? milestone.label : ''}
-                                                    hasAdjacentMilestones={false}
+                                                    labelPosition={milestone.labelPosition}
+                                                    shouldWrapText={milestone.shouldWrapText}
+                                                    isGrouped={milestone.isGrouped}
+                                                    groupLabels={milestone.groupLabels}
+                                                    truncatedLabel={milestone.truncatedLabel}
+                                                    hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                 />
-                                            );
-                                        })}
+                                            ));
+                                        })()}
                                     </g>
                                 );
                             })}
