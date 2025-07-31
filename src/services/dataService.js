@@ -180,6 +180,173 @@ export const processSubProgramData = () => {
     }
 };
 
+
+
+/**
+ * Processes investment data for Region Roadmap
+ * @param {Object} filters - Filter criteria {region, market, function, tier}
+ * @returns {Array} Processed data ready for the Region Gantt chart
+ */
+export const processRegionData = (filters = {}) => {
+    try {
+        // Filter to only show projects
+        const projectData = investmentData.filter(item =>
+            item.CLRTY_INV_TYPE === "Project"
+        );
+
+        // Group by INV_EXT_ID to reconstruct complete project timelines
+        const projectGroups = {};
+        projectData.forEach(item => {
+            if (!projectGroups[item.INV_EXT_ID]) {
+                projectGroups[item.INV_EXT_ID] = [];
+            }
+            projectGroups[item.INV_EXT_ID].push(item);
+        });
+
+        const processedProjects = [];
+
+        Object.keys(projectGroups).forEach(projectId => {
+            const projectItems = projectGroups[projectId];
+
+            // Find the main project record (either "Unphased" or "Phases")
+            const mainRecord = projectItems.find(item =>
+                item.ROADMAP_ELEMENT === "Phases" &&
+                (item.TASK_NAME === "Unphased" || item.TASK_NAME === "Phases")
+            );
+
+            if (!mainRecord) return;
+
+            // Parse INV_MARKET to extract region and market
+            const parseMarket = (invMarket) => {
+                if (!invMarket) return { region: '', market: '' };
+                const parts = invMarket.split('/');
+                return {
+                    region: parts[0] || '',
+                    market: parts[1] || ''
+                };
+            };
+
+            const { region, market } = parseMarket(mainRecord.INV_MARKET);
+
+            // Apply filters
+            if (filters.region && filters.region !== 'All' && region !== filters.region) return;
+            if (filters.market && filters.market !== 'All' && market !== filters.market) return;
+            if (filters.function && filters.function !== 'All' && mainRecord.INV_FUNCTION !== filters.function) return;
+            if (filters.tier && filters.tier !== 'All' && mainRecord.INV_TIER?.toString() !== filters.tier) return;
+
+            // Determine if project is phased or unphased
+            const isUnphased = mainRecord.TASK_NAME === "Unphased";
+
+            let phases = [];
+            let projectStart = mainRecord.TASK_START;
+            let projectEnd = mainRecord.TASK_FINISH;
+
+            if (!isUnphased) {
+                // Get all phase records for this project
+                const phaseRecords = projectItems.filter(item =>
+                    item.ROADMAP_ELEMENT === "Phases" &&
+                    item.TASK_NAME !== "Phases" &&
+                    ['Initiate', 'Evaluate', 'Develop', 'Deploy', 'Sustain', 'Close'].includes(item.TASK_NAME)
+                );
+
+                // Sort phases chronologically
+                phases = phaseRecords
+                    .sort((a, b) => new Date(a.TASK_START) - new Date(b.TASK_START))
+                    .map(phase => ({
+                        name: phase.TASK_NAME,
+                        startDate: phase.TASK_START,
+                        endDate: phase.TASK_FINISH
+                    }));
+
+                // Calculate overall project timeline from phases
+                if (phases.length > 0) {
+                    projectStart = phases[0].startDate;
+                    projectEnd = phases[phases.length - 1].endDate;
+                }
+            }
+
+            // Get milestones for this project
+            const milestones = projectItems
+                .filter(item =>
+                    (item.ROADMAP_ELEMENT === "Milestones - Other" ||
+                     item.ROADMAP_ELEMENT === "Milestones - Deployment") &&
+                    item.TASK_START
+                )
+                .map(milestone => ({
+                    date: milestone.TASK_START,
+                    status: milestone.MILESTONE_STATUS || 'Pending',
+                    label: milestone.TASK_NAME,
+                    type: milestone.ROADMAP_ELEMENT
+                }))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            processedProjects.push({
+                id: projectId,
+                name: mainRecord.INVESTMENT_NAME,
+                region,
+                market,
+                function: mainRecord.INV_FUNCTION || '',
+                tier: mainRecord.INV_TIER?.toString() || '',
+                startDate: projectStart,
+                endDate: projectEnd,
+                status: mainRecord.INV_OVERALL_STATUS,
+                isUnphased,
+                phases,
+                milestones
+            });
+        });
+
+        return processedProjects.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+        console.error('Error processing region data:', error);
+        return [];
+    }
+};
+
+/**
+ * Gets unique filter options from investment data
+ * @returns {Object} Filter options for dropdowns
+ */
+export const getRegionFilterOptions = () => {
+    try {
+        const projectData = investmentData.filter(item =>
+            item.CLRTY_INV_TYPE === "Project" &&
+            item.ROADMAP_ELEMENT === "Phases" &&
+            (item.TASK_NAME === "Unphased" || item.TASK_NAME === "Phases")
+        );
+
+        const regions = new Set();
+        const markets = new Set();
+        const functions = new Set();
+        const tiers = new Set();
+
+        projectData.forEach(item => {
+            // Parse INV_MARKET
+            if (item.INV_MARKET) {
+                const parts = item.INV_MARKET.split('/');
+                const region = parts[0];
+                const market = parts[1];
+
+                if (region) regions.add(region);
+                if (market) markets.add(market);
+            }
+
+            if (item.INV_FUNCTION) functions.add(item.INV_FUNCTION);
+            if (item.INV_TIER) tiers.add(item.INV_TIER.toString());
+        });
+
+        return {
+            regions: Array.from(regions).sort(),
+            markets: Array.from(markets).sort(),
+            functions: Array.from(functions).sort(),
+            tiers: Array.from(tiers).sort()
+        };
+    } catch (error) {
+        console.error('Error getting filter options:', error);
+        return { regions: [], markets: [], functions: [], tiers: [] };
+    }
+};
+
 /**
  * Validates the data structure of both input files
  * @returns {Object} Validation result

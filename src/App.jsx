@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PortfolioGanttChart from './pages/PortfolioGanttChart';
 import ProgramGanttChart from './pages/ProgramGanttChart';
 import SubProgramGanttChart from './pages/SubProgramGanttChart';
+import RegionRoadMap from './pages/RegionRoadMap';
 import { validateData } from './services/dataService';
 import './App.css';
 
@@ -57,6 +58,7 @@ function App() {
                                 <option value="Portfolio">Portfolio Roadmap</option>
                                 <option value="Program">Program Roadmap</option>
                                 <option value="SubProgram">Sub-Program Roadmap</option>
+                                <option value="Region">Region Roadmap</option>
                             </select>
                         </div>
                     </div>
@@ -83,7 +85,7 @@ function App() {
                                 setSelectedProjectName('');
                             }}
                         />
-                    ) : (
+                    ) : currentView === 'SubProgram' ? (
                         <SubProgramGanttChart
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
@@ -93,7 +95,10 @@ function App() {
                                 setSelectedSubProgramName('');
                             }}
                         />
+                    ) : (
+                        <RegionRoadMap />
                     )}
+
                 </div>
             </main>
         </div>
