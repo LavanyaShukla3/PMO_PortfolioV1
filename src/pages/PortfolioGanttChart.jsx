@@ -215,6 +215,35 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                 </select>
             </div>
 
+            {/* Fixed Header Area - Timeline Axis */}
+            <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+                <div className="relative flex w-full">
+                    {/* Sticky Portfolio Names Header */}
+                    <div
+                        style={{
+                            width: LABEL_WIDTH,
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 30,
+                            background: 'white',
+                            borderRight: '1px solid #e5e7eb',
+                        }}
+                    >
+                        <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Portfolios</div>
+                    </div>
+
+                    {/* Timeline Axis */}
+                    <div
+                        ref={scrollContainerRef}
+                        className="overflow-x-auto"
+                        style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                    >
+                        <TimelineAxis startDate={startDate} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollable Content Area */}
             <div className="relative flex w-full">
                 {/* Sticky Portfolio Names */}
                 <div
@@ -227,7 +256,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                         borderRight: '1px solid #e5e7eb',
                     }}
                 >
-                    <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Portfolios</div>
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
@@ -270,14 +298,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     </div>
                 </div>
 
-                {/* Scrollable Timeline */}
+                {/* Scrollable Timeline Content */}
                 <div
-                    ref={scrollContainerRef}
                     className="overflow-x-auto"
                     style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
-
                 >
-                    <TimelineAxis startDate={startDate} />
                     <div className="relative" style={{ width: totalWidth }}>
                         <svg
                             width={totalWidth}

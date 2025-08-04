@@ -246,6 +246,35 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 </select>
             </div>
 
+            {/* Fixed Header Area - Timeline Axis */}
+            <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+                <div className="relative flex w-full">
+                    {/* Sticky Program Names Header */}
+                    <div
+                        style={{
+                            width: LABEL_WIDTH,
+                            position: 'sticky',
+                            left: 0,
+                            zIndex: 30,
+                            background: 'white',
+                            borderRight: '1px solid #e5e7eb',
+                        }}
+                    >
+                        <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Programs</div>
+                    </div>
+
+                    {/* Timeline Axis */}
+                    <div
+                        ref={scrollContainerRef}
+                        className="overflow-x-auto"
+                        style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                    >
+                        <TimelineAxis startDate={startDate} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Scrollable Content Area */}
             <div className="relative flex w-full">
                 {/* Sticky Program Names */}
                 <div
@@ -258,7 +287,6 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                         borderRight: '1px solid #e5e7eb',
                     }}
                 >
-                    <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Programs</div>
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
                             const yOffset = filteredData
@@ -293,13 +321,11 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                     </div>
                 </div>
 
-                {/* Scrollable Timeline */}
+                {/* Scrollable Timeline Content */}
                 <div
-                    ref={scrollContainerRef}
                     className="overflow-x-auto"
                     style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
                 >
-                    <TimelineAxis startDate={startDate} />
                     <div className="relative" style={{ width: totalWidth }}>
                         <svg
                             width={totalWidth}

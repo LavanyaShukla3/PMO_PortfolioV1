@@ -18,7 +18,7 @@ const TimelineAxis = ({ startDate = new Date() }) => {
     const months = generateMonths();
 
     return (
-        <div className="flex sticky top-0 z-10 bg-white border-b border-gray-200">
+        <div className="flex bg-white border-b border-gray-200">
             {/* Scrollable timeline */}
             <div 
                 className="flex overflow-x-auto"

@@ -229,157 +229,185 @@ const RegionRoadMap = () => {
                     No projects match the current filters or fall within the timeline range
                 </div>
             ) : (
-                <div className="relative flex w-full">
-                    {/* Sticky Project Names */}
-                    <div
-                        style={{
-                            width: LABEL_WIDTH,
-                            position: 'sticky',
-                            left: 0,
-                            zIndex: 10,
-                            background: 'white',
-                            borderRight: '1px solid #e5e7eb',
-                        }}
-                    >
-                        <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Region Projects</div>
-                        <div style={{ position: 'relative', height: timelineFilteredData.length * (rowHeight + 8) }}>
-                            {timelineFilteredData.map((project, index) => {
-                                const yOffset = index * (rowHeight + 8);
-                                return (
-                                    <div
-                                        key={project.id}
-                                        style={{
-                                            position: 'absolute',
-                                            top: yOffset,
-                                            height: rowHeight,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'center',
-                                            paddingLeft: '8px',
-                                            fontSize: '14px',
-                                            borderBottom: '1px solid #f3f4f6',
-                                            width: '100%',
-                                            background: 'rgba(0, 0, 0, 0.015)',
-                                            outline: '1px solid rgba(0, 0, 0, 0.08)',
-                                            cursor: 'default'
-                                        }}
-                                    >
-                                        <div className="font-medium text-sm text-gray-800 truncate" title={project.name}>
-                                            {project.name}
-                                        </div>
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            {project.region}{project.market ? `/${project.market}` : ''} • {project.function} • Tier {project.tier}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                <>
+                    {/* Fixed Header Area - Timeline Axis */}
+                    <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+                        <div className="relative flex w-full">
+                            {/* Sticky Project Names Header */}
+                            <div
+                                style={{
+                                    width: LABEL_WIDTH,
+                                    position: 'sticky',
+                                    left: 0,
+                                    zIndex: 30,
+                                    background: 'white',
+                                    borderRight: '1px solid #e5e7eb',
+                                }}
+                            >
+                                <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Region Projects</div>
+                            </div>
+
+                            {/* Timeline Axis */}
+                            <div
+                                ref={scrollContainerRef}
+                                className="overflow-x-auto"
+                                style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                            >
+                                <TimelineAxis startDate={startDate} />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Right Panel - Timeline */}
-                    <div
-                        ref={scrollContainerRef}
-                        className="flex-1 overflow-x-auto"
-                        style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
-                    >
-                        <TimelineAxis startDate={startDate} />
-                        <div className="relative" style={{ width: totalWidth }}>
-                            <svg
-                                width={totalWidth}
-                                height={timelineFilteredData.length * (rowHeight + 8)}
-                                style={{ height: timelineFilteredData.length * (rowHeight + 8) }}
-                            >
+                    {/* Scrollable Content Area */}
+                    <div className="relative flex w-full">
+                        {/* Sticky Project Names */}
+                        <div
+                            style={{
+                                width: LABEL_WIDTH,
+                                position: 'sticky',
+                                left: 0,
+                                zIndex: 10,
+                                background: 'white',
+                                borderRight: '1px solid #e5e7eb',
+                            }}
+                        >
+                            <div style={{ position: 'relative', height: timelineFilteredData.length * (rowHeight + 8) }}>
                                 {timelineFilteredData.map((project, index) => {
                                     const yOffset = index * (rowHeight + 8);
-                                    const nextMilestone = getNextUpcomingMilestone(project.milestones || []);
-                                    const milestones = processMilestonesWithPosition(project.milestones || []);
-
                                     return (
-                                        <g key={`project-${project.id}`} className="project-group">
-                                            {/* Project bars and phases */}
-                                            {project.isUnphased ? (
-                                                // Single unphased bar (only render if within timeline range)
-                                                (() => {
-                                                    const projectStartDate = parseDate(project.startDate);
-                                                    const projectEndDate = parseDate(project.endDate);
-                                                    if (!projectStartDate || !projectEndDate) return null;
-
-                                                    // Skip projects that don't overlap with timeline range
-                                                    if (projectStartDate > endDate || projectEndDate < startDate) {
-                                                        return null;
-                                                    }
-
-                                                    const startX = calculatePosition(projectStartDate, startDate);
-                                                    const endX = calculatePosition(projectEndDate, startDate);
-                                                    const width = Math.max(endX - startX, 2);
-
-                                                    return (
-                                                        <rect
-                                                            x={startX}
-                                                            y={yOffset + (rowHeight - 24) / 2}
-                                                            width={width}
-                                                            height={24}
-                                                            rx={4}
-                                                            fill="#9ca3af"
-                                                            className="transition-opacity duration-150 hover:opacity-90"
-                                                        />
-                                                    );
-                                                })()
-                                            ) : (
-                                                // Multiple phase bars (only render phases within timeline range)
-                                                project.phases?.map((phase, phaseIndex) => {
-                                                    const phaseStartDate = parseDate(phase.startDate);
-                                                    const phaseEndDate = parseDate(phase.endDate);
-                                                    if (!phaseStartDate || !phaseEndDate) return null;
-
-                                                    // Skip phases that don't overlap with timeline range
-                                                    if (phaseStartDate > endDate || phaseEndDate < startDate) {
-                                                        return null;
-                                                    }
-
-                                                    const startX = calculatePosition(phaseStartDate, startDate);
-                                                    const endX = calculatePosition(phaseEndDate, startDate);
-                                                    const width = Math.max(endX - startX, 2);
-
-                                                    return (
-                                                        <rect
-                                                            key={`${project.id}-${phase.name}`}
-                                                            x={startX}
-                                                            y={yOffset + (rowHeight - 24) / 2}
-                                                            width={width}
-                                                            height={24}
-                                                            rx={4}
-                                                            fill={phaseColors[phase.name] || '#9ca3af'}
-                                                            className="transition-opacity duration-150 hover:opacity-90"
-                                                        />
-                                                    );
-                                                }).filter(Boolean)
-                                            )}
-
-                                            {/* Milestones */}
-                                            {milestones.map((milestone, milestoneIndex) => (
-                                                <MilestoneMarker
-                                                    key={`${project.id}-milestone-${milestoneIndex}`}
-                                                    x={milestone.x}
-                                                    y={yOffset + (rowHeight - 24) / 2 + 12}
-                                                    complete={milestone.status}
-                                                    label={milestone === nextMilestone ? milestone.label : ''}
-                                                    isSG3={false}
-                                                    labelPosition="below"
-                                                    shouldWrapText={false}
-                                                    isGrouped={false}
-                                                    groupLabels={[]}
-                                                    truncatedLabel=""
-                                                    hasAdjacentMilestones={false}
-                                                />
-                                            ))}
-                                        </g>
+                                        <div
+                                            key={project.id}
+                                            style={{
+                                                position: 'absolute',
+                                                top: yOffset,
+                                                height: rowHeight,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                justifyContent: 'center',
+                                                paddingLeft: '8px',
+                                                fontSize: '14px',
+                                                borderBottom: '1px solid #f3f4f6',
+                                                width: '100%',
+                                                background: 'rgba(0, 0, 0, 0.015)',
+                                                outline: '1px solid rgba(0, 0, 0, 0.08)',
+                                                cursor: 'default'
+                                            }}
+                                        >
+                                            <div className="font-medium text-sm text-gray-800 truncate" title={project.name}>
+                                                {project.name}
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                {project.region}{project.market ? `/${project.market}` : ''} • {project.function} • Tier {project.tier}
+                                            </div>
+                                        </div>
                                     );
                                 })}
-                            </svg>
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Timeline Content */}
+                        <div
+                            className="flex-1 overflow-x-auto"
+                            style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                        >
+                            <div className="relative" style={{ width: totalWidth }}>
+                                <svg
+                                    width={totalWidth}
+                                    height={timelineFilteredData.length * (rowHeight + 8)}
+                                    style={{ height: timelineFilteredData.length * (rowHeight + 8) }}
+                                >
+                                    {timelineFilteredData.map((project, index) => {
+                                        const yOffset = index * (rowHeight + 8);
+                                        const nextMilestone = getNextUpcomingMilestone(project.milestones || []);
+                                        const milestones = processMilestonesWithPosition(project.milestones || []);
+
+                                        return (
+                                            <g key={`project-${project.id}`} className="project-group">
+                                                {/* Project bars and phases */}
+                                                {project.isUnphased ? (
+                                                    // Single unphased bar (only render if within timeline range)
+                                                    (() => {
+                                                        const projectStartDate = parseDate(project.startDate);
+                                                        const projectEndDate = parseDate(project.endDate);
+                                                        if (!projectStartDate || !projectEndDate) return null;
+
+                                                        // Skip projects that don't overlap with timeline range
+                                                        if (projectStartDate > endDate || projectEndDate < startDate) {
+                                                            return null;
+                                                        }
+
+                                                        const startX = calculatePosition(projectStartDate, startDate);
+                                                        const endX = calculatePosition(projectEndDate, startDate);
+                                                        const width = Math.max(endX - startX, 2);
+
+                                                        return (
+                                                            <rect
+                                                                x={startX}
+                                                                y={yOffset + (rowHeight - 24) / 2}
+                                                                width={width}
+                                                                height={24}
+                                                                rx={4}
+                                                                fill="#9ca3af"
+                                                                className="transition-opacity duration-150 hover:opacity-90"
+                                                            />
+                                                        );
+                                                    })()
+                                                ) : (
+                                                    // Multiple phase bars (only render phases within timeline range)
+                                                    project.phases?.map((phase, phaseIndex) => {
+                                                        const phaseStartDate = parseDate(phase.startDate);
+                                                        const phaseEndDate = parseDate(phase.endDate);
+                                                        if (!phaseStartDate || !phaseEndDate) return null;
+
+                                                        // Skip phases that don't overlap with timeline range
+                                                        if (phaseStartDate > endDate || phaseEndDate < startDate) {
+                                                            return null;
+                                                        }
+
+                                                        const startX = calculatePosition(phaseStartDate, startDate);
+                                                        const endX = calculatePosition(phaseEndDate, startDate);
+                                                        const width = Math.max(endX - startX, 2);
+
+                                                        return (
+                                                            <rect
+                                                                key={`${project.id}-${phase.name}`}
+                                                                x={startX}
+                                                                y={yOffset + (rowHeight - 24) / 2}
+                                                                width={width}
+                                                                height={24}
+                                                                rx={4}
+                                                                fill={phaseColors[phase.name] || '#9ca3af'}
+                                                                className="transition-opacity duration-150 hover:opacity-90"
+                                                            />
+                                                        );
+                                                    }).filter(Boolean)
+                                                )}
+
+                                                {/* Milestones */}
+                                                {milestones.map((milestone, milestoneIndex) => (
+                                                    <MilestoneMarker
+                                                        key={`${project.id}-milestone-${milestoneIndex}`}
+                                                        x={milestone.x}
+                                                        y={yOffset + (rowHeight - 24) / 2 + 12}
+                                                        complete={milestone.status}
+                                                        label={milestone === nextMilestone ? milestone.label : ''}
+                                                        isSG3={false}
+                                                        labelPosition="below"
+                                                        shouldWrapText={false}
+                                                        isGrouped={false}
+                                                        groupLabels={[]}
+                                                        truncatedLabel=""
+                                                        hasAdjacentMilestones={false}
+                                                    />
+                                                ))}
+                                            </g>
+                                        );
+                                    })}
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );
