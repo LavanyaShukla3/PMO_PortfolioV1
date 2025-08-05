@@ -405,8 +405,11 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 {/* Synchronized Scroll Container */}
                 <div
                     ref={ganttScrollRef}
-                    className="overflow-x-auto"
-                    style={{ width: `${100 * 13}px` }}
+                    className="flex-1 overflow-x-auto"
+                    style={{
+                        width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                        maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                    }}
                     onScroll={handleGanttScroll}
                 >
                     <div className="relative" style={{ width: totalWidth }}>

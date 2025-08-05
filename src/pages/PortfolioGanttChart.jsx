@@ -351,7 +351,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             </div>
 
             {/* Scrollable Content Area */}
-            <div className="flex-1 relative flex w-full overflow-hidden">
+            <div className="relative flex w-full">
                 {/* Sticky Portfolio Names - Synchronized Scrolling */}
                 <div
                     ref={leftPanelScrollRef}
@@ -408,7 +408,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                 {/* Scrollable Timeline Content */}
                 <div
                     ref={ganttScrollRef}
-                    className="flex-1 overflow-x-auto overflow-y-auto"
+                    className="flex-1 overflow-x-auto"
                     style={{
                         width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
                         maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`

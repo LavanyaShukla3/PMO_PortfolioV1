@@ -367,28 +367,35 @@ const RegionRoadMap = () => {
                     No projects match the current filters or fall within the timeline range
                 </div>
             ) : (
-                <>
+                <div className="flex-1 flex flex-col">
                     {/* Fixed Header Area - Timeline Axis */}
                     <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
                         <div className="relative flex w-full">
                             {/* Sticky Project Names Header */}
                             <div
+                                className="flex-shrink-0 bg-white border-r border-gray-200"
                                 style={{
                                     width: responsiveConstants.LABEL_WIDTH,
                                     position: 'sticky',
                                     left: 0,
                                     zIndex: 30,
-                                    background: 'white',
-                                    borderRight: '1px solid #e5e7eb',
                                 }}
                             >
-                                <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Region Projects</div>
+                                <div
+                                    className="flex items-center px-2 font-semibold text-gray-700"
+                                    style={{
+                                        height: responsiveConstants.TOUCH_TARGET_SIZE,
+                                        fontSize: responsiveConstants.FONT_SIZE
+                                    }}
+                                >
+                                    Region Projects
+                                </div>
                             </div>
 
                             {/* Timeline Axis */}
                             <div
                                 ref={timelineScrollRef}
-                                className="overflow-x-auto"
+                                className="flex-1 overflow-x-auto"
                                 style={{
                                     width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
                                     maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
@@ -409,14 +416,12 @@ const RegionRoadMap = () => {
                         {/* Sticky Project Names - Synchronized Scrolling */}
                         <div
                             ref={leftPanelScrollRef}
-                            className="overflow-y-auto"
+                            className="flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto"
                             style={{
                                 width: responsiveConstants.LABEL_WIDTH,
                                 position: 'sticky',
                                 left: 0,
                                 zIndex: 10,
-                                background: 'white',
-                                borderRight: '1px solid #e5e7eb',
                                 height: '100%',
                             }}
                             onScroll={handleLeftPanelScroll}
@@ -427,27 +432,26 @@ const RegionRoadMap = () => {
                                     return (
                                         <div
                                             key={project.id}
+                                            className="absolute flex flex-col justify-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
                                             style={{
-                                                position: 'absolute',
                                                 top: yOffset,
                                                 height: rowHeight,
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'center',
-                                                paddingLeft: '8px',
-                                                fontSize: '14px',
-                                                borderBottom: '1px solid #f3f4f6',
+                                                paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
+                                                fontSize: responsiveConstants.FONT_SIZE,
                                                 width: '100%',
-                                                background: 'rgba(0, 0, 0, 0.015)',
-                                                outline: '1px solid rgba(0, 0, 0, 0.08)',
+                                                minHeight: responsiveConstants.TOUCH_TARGET_SIZE,
                                                 cursor: 'default'
                                             }}
                                         >
-                                            <div className="font-medium text-sm text-gray-800 truncate" title={project.name}>
-                                                {project.name}
-                                            </div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                                {project.region}{project.market ? `/${project.market}` : ''} • {project.function} • Tier {project.tier}
+                                            <div className="flex items-center justify-between w-full">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-gray-800 truncate pr-2" title={project.name}>
+                                                        {project.name}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 mt-1">
+                                                        {project.region}{project.market ? `/${project.market}` : ''} • {project.function} • Tier {project.tier}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -565,7 +569,7 @@ const RegionRoadMap = () => {
                             </div>
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );
