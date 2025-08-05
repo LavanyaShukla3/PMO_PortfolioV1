@@ -5,19 +5,65 @@ import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 
-// Responsive constants
-const getResponsiveConstants = () => {
+// Zoom levels configuration
+const ZOOM_LEVELS = {
+    0.5: { // 50% - Maximum Zoom Out
+        MONTH_WIDTH: 40,
+        VISIBLE_MONTHS: 24,
+        FONT_SIZE: '8px',
+        LABEL_WIDTH: 160,
+        TOUCH_TARGET_SIZE: 16
+    },
+    0.75: { // 75% - Zoom Out
+        MONTH_WIDTH: 60,
+        VISIBLE_MONTHS: 18,
+        FONT_SIZE: '10px',
+        LABEL_WIDTH: 220,
+        TOUCH_TARGET_SIZE: 20
+    },
+    1.0: { // 100% - Default
+        MONTH_WIDTH: 100,
+        VISIBLE_MONTHS: 13,
+        FONT_SIZE: '14px',
+        LABEL_WIDTH: 320,
+        TOUCH_TARGET_SIZE: 24
+    },
+    1.25: { // 125% - Zoom In
+        MONTH_WIDTH: 125,
+        VISIBLE_MONTHS: 10,
+        FONT_SIZE: '16px',
+        LABEL_WIDTH: 400,
+        TOUCH_TARGET_SIZE: 30
+    },
+    1.5: { // 150% - Maximum Zoom In
+        MONTH_WIDTH: 150,
+        VISIBLE_MONTHS: 8,
+        FONT_SIZE: '18px',
+        LABEL_WIDTH: 480,
+        TOUCH_TARGET_SIZE: 36
+    }
+};
+
+// Responsive constants with zoom support
+const getResponsiveConstants = (zoomLevel = 1.0) => {
     const screenWidth = window.innerWidth;
     const isMobile = screenWidth < 768;
     const isTablet = screenWidth >= 768 && screenWidth < 1024;
 
+    // Get base zoom configuration
+    const zoomConfig = ZOOM_LEVELS[zoomLevel] || ZOOM_LEVELS[1.0];
+
+    // Apply mobile adjustments if needed
+    const mobileAdjustment = isMobile ? 0.7 : 1.0;
+
     return {
-        MONTH_WIDTH: isMobile ? Math.max(60, screenWidth * 0.08) : isTablet ? 80 : 100,
+        MONTH_WIDTH: Math.round(zoomConfig.MONTH_WIDTH * mobileAdjustment),
         TOTAL_MONTHS: 73,
-        LABEL_WIDTH: isMobile ? Math.min(200, screenWidth * 0.37) : isTablet ? 270 : 320, // Increased spacing
-        VISIBLE_MONTHS: isMobile ? 6 : isTablet ? 9 : 13,
-        TOUCH_TARGET_SIZE: isMobile ? 44 : 24,
-        FONT_SIZE: isMobile ? '12px' : '14px'
+        LABEL_WIDTH: Math.round(zoomConfig.LABEL_WIDTH * mobileAdjustment),
+        VISIBLE_MONTHS: isMobile ? Math.max(6, Math.round(zoomConfig.VISIBLE_MONTHS * 0.6)) : zoomConfig.VISIBLE_MONTHS,
+        TOUCH_TARGET_SIZE: Math.max(isMobile ? 44 : 16, Math.round(zoomConfig.TOUCH_TARGET_SIZE * mobileAdjustment)),
+        FONT_SIZE: zoomConfig.FONT_SIZE,
+        ZOOM_LEVEL: zoomLevel
     };
 };
 
@@ -48,7 +94,8 @@ const RegionRoadMap = () => {
     });
 
     const [availableMarkets, setAvailableMarkets] = useState([]);
-    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants());
+    const [zoomLevel, setZoomLevel] = useState(1.0);
+    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -158,6 +205,32 @@ const RegionRoadMap = () => {
             [filterType]: value
         }));
     };
+
+    // Zoom handlers
+    const handleZoomIn = () => {
+        const zoomLevels = Object.keys(ZOOM_LEVELS).map(Number).sort((a, b) => a - b);
+        const currentIndex = zoomLevels.indexOf(zoomLevel);
+        if (currentIndex < zoomLevels.length - 1) {
+            setZoomLevel(zoomLevels[currentIndex + 1]);
+        }
+    };
+
+    const handleZoomOut = () => {
+        const zoomLevels = Object.keys(ZOOM_LEVELS).map(Number).sort((a, b) => a - b);
+        const currentIndex = zoomLevels.indexOf(zoomLevel);
+        if (currentIndex > 0) {
+            setZoomLevel(zoomLevels[currentIndex - 1]);
+        }
+    };
+
+    const handleZoomReset = () => {
+        setZoomLevel(1.0);
+    };
+
+    // Update responsive constants when zoom level changes
+    useEffect(() => {
+        setResponsiveConstants(getResponsiveConstants(zoomLevel));
+    }, [zoomLevel]);
 
     const rowHeight = 60;
 
@@ -382,13 +455,64 @@ const RegionRoadMap = () => {
                                 }}
                             >
                                 <div
-                                    className="flex items-center px-2 font-semibold text-gray-700"
+                                    className="flex items-center justify-between px-2 font-semibold text-gray-700"
                                     style={{
                                         height: responsiveConstants.TOUCH_TARGET_SIZE,
                                         fontSize: responsiveConstants.FONT_SIZE
                                     }}
                                 >
-                                    Region Projects
+                                    <span className="truncate">Region Projects</span>
+                                    {/* Responsive Zoom Controls */}
+                                    <div className="flex items-center space-x-1 ml-2">
+                                        <button
+                                            onClick={handleZoomOut}
+                                            disabled={zoomLevel <= 0.5}
+                                            className={`
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'w-10 h-8' : 'w-8 h-6'}
+                                                flex items-center justify-center bg-gray-100 hover:bg-gray-200
+                                                disabled:bg-gray-50 disabled:text-gray-300 rounded
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm' : 'text-xs'}
+                                                font-bold transition-colors
+                                            `}
+                                            title="Zoom Out (Show More Months)"
+                                        >
+                                            −
+                                        </button>
+                                        <span
+                                            className={`
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm min-w-[45px]' : 'text-xs min-w-[35px]'}
+                                                text-gray-600 text-center font-medium
+                                            `}
+                                        >
+                                            {Math.round(zoomLevel * 100)}%
+                                        </span>
+                                        <button
+                                            onClick={handleZoomIn}
+                                            disabled={zoomLevel >= 1.5}
+                                            className={`
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'w-10 h-8' : 'w-8 h-6'}
+                                                flex items-center justify-center bg-gray-100 hover:bg-gray-200
+                                                disabled:bg-gray-50 disabled:text-gray-300 rounded
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm' : 'text-xs'}
+                                                font-bold transition-colors
+                                            `}
+                                            title="Zoom In (Show Fewer Months)"
+                                        >
+                                            +
+                                        </button>
+                                        {/* Reset button - hidden on very small screens */}
+                                        <button
+                                            onClick={handleZoomReset}
+                                            className={`
+                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm px-2 py-1' : 'text-xs px-1'}
+                                                text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors
+                                                ${responsiveConstants.LABEL_WIDTH < 200 ? 'hidden' : 'block'}
+                                            `}
+                                            title="Reset to 100%"
+                                        >
+                                            {responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'Reset' : '↺'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

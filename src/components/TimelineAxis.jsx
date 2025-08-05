@@ -15,7 +15,7 @@ const TimelineAxis = ({
             months.push({
                 date: currentMonth,
                 label: format(currentMonth, 'MMM yyyy'),
-                shortLabel: format(currentMonth, 'MMM'), // Short label for mobile
+                shortLabel: format(currentMonth, 'MMM yy'), // Short label with abbreviated year
                 xPosition: xPosition
             });
 
@@ -39,8 +39,9 @@ const TimelineAxis = ({
 
     const months = generateMonths();
 
-    // Determine if we should show short labels (mobile)
-    const isMobile = monthWidth < 80;
+    // Determine label format based on available space
+    const useShortFormat = monthWidth < 80;  // Use abbreviated year format when space is limited
+    const useFullFormat = monthWidth >= 120; // Use full year format when there's plenty of space
 
     return (
         <div className="flex bg-white border-b border-gray-200">
@@ -65,7 +66,7 @@ const TimelineAxis = ({
                         }}
                     >
                         <span className="text-center leading-tight">
-                            {isMobile ? month.shortLabel : month.label}
+                            {useShortFormat ? month.shortLabel : month.label}
                         </span>
                     </div>
                 ))}
