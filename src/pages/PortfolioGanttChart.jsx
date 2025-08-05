@@ -115,7 +115,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const [filteredData, setFilteredData] = useState([]);
     const [selectedParent, setSelectedParent] = useState('All');
 
-    const scrollContainerRef = useRef(null);
+    const timelineScrollRef = useRef(null);
+    const ganttScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
     const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
@@ -125,14 +126,41 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         setProcessedData(data);
         setFilteredData(data);
 
-        // Initial scroll to current-1 to current+11 months
-        if (scrollContainerRef.current) {
-            // Calculate scroll position to show current month - 1
-            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
-            const scrollPosition = (monthsFromStart - 1) * MONTH_WIDTH;
-            scrollContainerRef.current.scrollLeft = scrollPosition;
+        // Initial scroll to show June 2025 to June 2026 (13 months)
+        if (timelineScrollRef.current) {
+            // Calculate scroll position to show June 2025 (current month - 2)
+            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
+            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+
+            // Debug actual widths
+            console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
+            console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
+            console.log('🔍 Timeline container style width:', timelineScrollRef.current.style.width);
+            console.log('🔍 Expected width for 13 months:', 100 * 13, 'px');
+            console.log('🔍 Screen width:', window.innerWidth);
+
+            timelineScrollRef.current.scrollLeft = scrollPosition;
+            // Sync gantt scroll position
+            if (ganttScrollRef.current) {
+                ganttScrollRef.current.scrollLeft = scrollPosition;
+            }
         }
     }, []);
+
+    // Scroll synchronization handlers
+    const handleTimelineScroll = (e) => {
+        const scrollLeft = e.target.scrollLeft;
+        if (ganttScrollRef.current && ganttScrollRef.current.scrollLeft !== scrollLeft) {
+            ganttScrollRef.current.scrollLeft = scrollLeft;
+        }
+    };
+
+    const handleGanttScroll = (e) => {
+        const scrollLeft = e.target.scrollLeft;
+        if (timelineScrollRef.current && timelineScrollRef.current.scrollLeft !== scrollLeft) {
+            timelineScrollRef.current.scrollLeft = scrollLeft;
+        }
+    };
 
     const parentNames = ['All', ...Array.from(new Set(processedData.map(item => item.parentName)))];
 
@@ -234,9 +262,10 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
                     {/* Timeline Axis */}
                     <div
-                        ref={scrollContainerRef}
+                        ref={timelineScrollRef}
                         className="overflow-x-auto"
-                        style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                        style={{ width: `${100 * 13}px` }}
+                        onScroll={handleTimelineScroll}
                     >
                         <TimelineAxis startDate={startDate} />
                     </div>
@@ -300,8 +329,10 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
                 {/* Scrollable Timeline Content */}
                 <div
+                    ref={ganttScrollRef}
                     className="overflow-x-auto"
-                    style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                    style={{ width: `${100 * 13}px` }}
+                    onScroll={handleGanttScroll}
                 >
                     <div className="relative" style={{ width: totalWidth }}>
                         <svg

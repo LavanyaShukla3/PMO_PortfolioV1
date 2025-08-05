@@ -11,24 +11,25 @@ const TOTAL_MONTHS = MONTHS_BEFORE + MONTHS_AFTER + 1; // +1 for current month
 /**
  * Parses a date string from the investment data format
  * @param {string} dateString - Date in format "dd-MMM-yy" (e.g., "12-Aug-24")
+ * @param {string} context - Optional context for debugging (e.g., project name)
  * @returns {Date|null} Parsed date or null if invalid
  */
 
-export const parseDate = (dateString) => {
+export const parseDate = (dateString, context = '') => {
     if (!dateString) return null;
     try {
         if (dateString.includes('-')) {
             const parsedDate = parse(dateString, 'dd-MMM-yy', new Date());
-            console.log('Parsing date:', dateString, '→', parsedDate);
+            console.log('Parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
             return parsedDate;
         } else if (dateString.includes('/')) {
             const parsedDate = parse(dateString, 'MM/dd/yyyy', new Date());
-            console.log('Parsing date:', dateString, '→', parsedDate);
+            console.log('Parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
             return parsedDate;
         }
         return null;
     } catch (error) {
-        console.error('Error parsing date:', dateString, error);
+        console.error('Error parsing date:', dateString, error, context ? `[${context}]` : '');
         return null;
     }
 };

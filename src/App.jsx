@@ -65,7 +65,7 @@ function App() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 py-6">
+            <main className="mx-auto px-4 py-6">
                 <div className="bg-white shadow rounded-lg p-6">
                     {currentView === 'Portfolio' ? (
                         <PortfolioGanttChart

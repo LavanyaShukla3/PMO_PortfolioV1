@@ -107,7 +107,8 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('');
 
-    const scrollContainerRef = useRef(null);
+    const timelineScrollRef = useRef(null);
+    const ganttScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
     const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
@@ -149,16 +150,35 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     }, [selectedProjectId, processedData]);
 
     useEffect(() => {
-        // Initial scroll to current-1 to current+11 months
-        if (scrollContainerRef.current) {
+        // Initial scroll to show June 2025 to June 2026 (13 months)
+        if (timelineScrollRef.current) {
             const monthsFromStart = 36;
-            const scrollPosition = (monthsFromStart - 1) * MONTH_WIDTH;
-            scrollContainerRef.current.scrollLeft = scrollPosition;
+            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+            timelineScrollRef.current.scrollLeft = scrollPosition;
+            // Sync gantt scroll position
+            if (ganttScrollRef.current) {
+                ganttScrollRef.current.scrollLeft = scrollPosition;
+            }
         }
     }, []);
 
     const handleProgramChange = (e) => {
         setSelectedProgram(e.target.value);
+    };
+
+    // Scroll synchronization functions
+    const handleTimelineScroll = (e) => {
+        const scrollLeft = e.target.scrollLeft;
+        if (ganttScrollRef.current) {
+            ganttScrollRef.current.scrollLeft = scrollLeft;
+        }
+    };
+
+    const handleGanttScroll = (e) => {
+        const scrollLeft = e.target.scrollLeft;
+        if (timelineScrollRef.current) {
+            timelineScrollRef.current.scrollLeft = scrollLeft;
+        }
     };
 
     const calculateMilestoneLabelHeight = (milestones) => {
@@ -246,7 +266,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 </select>
             </div>
 
-            {/* Fixed Header Area - Timeline Axis */}
+            {/* Fixed Header Area - Scrollable Timeline */}
             <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
                 <div className="relative flex w-full">
                     {/* Sticky Program Names Header */}
@@ -263,18 +283,19 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                         <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Programs</div>
                     </div>
 
-                    {/* Timeline Axis */}
+                    {/* Scrollable Timeline Axis */}
                     <div
-                        ref={scrollContainerRef}
+                        ref={timelineScrollRef}
                         className="overflow-x-auto"
-                        style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                        style={{ width: `${100 * 13}px` }}
+                        onScroll={handleTimelineScroll}
                     >
                         <TimelineAxis startDate={startDate} />
                     </div>
                 </div>
             </div>
 
-            {/* Scrollable Content Area */}
+            {/* Single Synchronized Scroll Container */}
             <div className="relative flex w-full">
                 {/* Sticky Program Names */}
                 <div
@@ -321,12 +342,15 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                     </div>
                 </div>
 
-                {/* Scrollable Timeline Content */}
+                {/* Synchronized Scroll Container */}
                 <div
+                    ref={ganttScrollRef}
                     className="overflow-x-auto"
-                    style={{ width: `calc(100% - ${LABEL_WIDTH}px)` }}
+                    style={{ width: `${100 * 13}px` }}
+                    onScroll={handleGanttScroll}
                 >
                     <div className="relative" style={{ width: totalWidth }}>
+                        {/* Gantt Bars */}
                         <svg
                             width={totalWidth}
                             style={{ height: Math.max(400, getTotalHeight()) }}
