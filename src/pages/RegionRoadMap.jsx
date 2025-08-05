@@ -5,10 +5,21 @@ import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 
-// Constants from dateUtils
-const MONTH_WIDTH = 100;
-const TOTAL_MONTHS = 73;
-const LABEL_WIDTH = 300;
+// Responsive constants
+const getResponsiveConstants = () => {
+    const screenWidth = window.innerWidth;
+    const isMobile = screenWidth < 768;
+    const isTablet = screenWidth >= 768 && screenWidth < 1024;
+
+    return {
+        MONTH_WIDTH: isMobile ? Math.max(60, screenWidth * 0.08) : isTablet ? 80 : 100,
+        TOTAL_MONTHS: 73,
+        LABEL_WIDTH: isMobile ? Math.min(200, screenWidth * 0.37) : isTablet ? 270 : 320, // Increased spacing
+        VISIBLE_MONTHS: isMobile ? 6 : isTablet ? 9 : 13,
+        TOUCH_TARGET_SIZE: isMobile ? 44 : 24,
+        FONT_SIZE: isMobile ? '12px' : '14px'
+    };
+};
 
 // Milestone constants (copied from PortfolioGanttChart)
 const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
@@ -37,9 +48,21 @@ const RegionRoadMap = () => {
     });
 
     const [availableMarkets, setAvailableMarkets] = useState([]);
+    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants());
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
+    const leftPanelScrollRef = useRef(null);
+
+    // Handle window resize for responsive behavior
+    useEffect(() => {
+        const handleResize = () => {
+            setResponsiveConstants(getResponsiveConstants());
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Load filter options on component mount
     useEffect(() => {
@@ -47,11 +70,11 @@ const RegionRoadMap = () => {
         setFilterOptions(options);
         setAvailableMarkets(options.markets);
 
-        // Initial scroll to show June 2025 to June 2026 (13 months)
+        // Initial scroll to show June 2025 to June 2026 (responsive months)
         if (timelineScrollRef.current) {
             // Calculate scroll position to show June 2025 (current month - 2)
             const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
-            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
             timelineScrollRef.current.scrollLeft = scrollPosition;
             // Sync gantt scroll position
             if (ganttScrollRef.current) {
@@ -90,8 +113,21 @@ const RegionRoadMap = () => {
 
     const handleGanttScroll = (e) => {
         const scrollLeft = e.target.scrollLeft;
+        const scrollTop = e.target.scrollTop;
         if (timelineScrollRef.current && timelineScrollRef.current.scrollLeft !== scrollLeft) {
             timelineScrollRef.current.scrollLeft = scrollLeft;
+        }
+        // Synchronize vertical scroll with left panel
+        if (leftPanelScrollRef.current && leftPanelScrollRef.current.scrollTop !== scrollTop) {
+            leftPanelScrollRef.current.scrollTop = scrollTop;
+        }
+    };
+
+    const handleLeftPanelScroll = (e) => {
+        const scrollTop = e.target.scrollTop;
+        // Synchronize vertical scroll with gantt chart
+        if (ganttScrollRef.current && ganttScrollRef.current.scrollTop !== scrollTop) {
+            ganttScrollRef.current.scrollTop = scrollTop;
         }
     };
 
@@ -102,7 +138,7 @@ const RegionRoadMap = () => {
 
     // Use the standard 73-month timeline
     const { startDate, endDate } = getTimelineRange();
-    const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
+    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
     // Phase colors mapping
     const phaseColors = {
@@ -158,7 +194,7 @@ const RegionRoadMap = () => {
     }, [processedData, startDate, endDate]);
 
     // Milestone processing function (copied from PortfolioGanttChart)
-    const processMilestonesWithPosition = (milestones, startDate) => {
+    const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
         if (!milestones?.length) return [];
 
         // Sort milestones by date
@@ -183,7 +219,7 @@ const RegionRoadMap = () => {
 
         sortedMilestones.forEach(milestone => {
             const milestoneDate = parseDate(milestone.date);
-            const x = calculatePosition(milestoneDate, startDate);
+            const x = calculatePosition(milestoneDate, startDate, responsiveConstants.MONTH_WIDTH);
             const dateStr = milestoneDate.toISOString();
 
             const milestoneWithX = { ...milestone, x, date: milestoneDate };
@@ -338,7 +374,7 @@ const RegionRoadMap = () => {
                             {/* Sticky Project Names Header */}
                             <div
                                 style={{
-                                    width: LABEL_WIDTH,
+                                    width: responsiveConstants.LABEL_WIDTH,
                                     position: 'sticky',
                                     left: 0,
                                     zIndex: 30,
@@ -353,26 +389,37 @@ const RegionRoadMap = () => {
                             <div
                                 ref={timelineScrollRef}
                                 className="overflow-x-auto"
-                                style={{ width: `${100 * 13}px` }}
+                                style={{
+                                    width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                                    maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                                }}
                                 onScroll={handleTimelineScroll}
                             >
-                                <TimelineAxis startDate={startDate} />
+                                <TimelineAxis
+                                    startDate={startDate}
+                                    monthWidth={responsiveConstants.MONTH_WIDTH}
+                                    fontSize={responsiveConstants.FONT_SIZE}
+                                />
                             </div>
                         </div>
                     </div>
 
                     {/* Scrollable Content Area */}
                     <div className="relative flex w-full">
-                        {/* Sticky Project Names */}
+                        {/* Sticky Project Names - Synchronized Scrolling */}
                         <div
+                            ref={leftPanelScrollRef}
+                            className="overflow-y-auto"
                             style={{
-                                width: LABEL_WIDTH,
+                                width: responsiveConstants.LABEL_WIDTH,
                                 position: 'sticky',
                                 left: 0,
                                 zIndex: 10,
                                 background: 'white',
                                 borderRight: '1px solid #e5e7eb',
+                                height: '100%',
                             }}
+                            onScroll={handleLeftPanelScroll}
                         >
                             <div style={{ position: 'relative', height: timelineFilteredData.length * (rowHeight + 8) }}>
                                 {timelineFilteredData.map((project, index) => {
@@ -412,7 +459,10 @@ const RegionRoadMap = () => {
                         <div
                             ref={ganttScrollRef}
                             className="flex-1 overflow-x-auto"
-                            style={{ width: `${100 * 13}px` }}
+                            style={{
+                                width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                                maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                            }}
                             onScroll={handleGanttScroll}
                         >
                             <div className="relative" style={{ width: totalWidth }}>
@@ -424,7 +474,7 @@ const RegionRoadMap = () => {
                                     {timelineFilteredData.map((project, index) => {
                                         const yOffset = index * (rowHeight + 8);
 
-                                        const milestones = processMilestonesWithPosition(project.milestones || [], startDate);
+                                        const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH);
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
@@ -441,8 +491,8 @@ const RegionRoadMap = () => {
                                                             return null;
                                                         }
 
-                                                        const startX = calculatePosition(projectStartDate, startDate);
-                                                        const endX = calculatePosition(projectEndDate, startDate);
+                                                        const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
+                                                        const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                         const width = Math.max(endX - startX, 2);
 
                                                         return (
@@ -469,8 +519,8 @@ const RegionRoadMap = () => {
                                                             return null;
                                                         }
 
-                                                        const startX = calculatePosition(phaseStartDate, startDate);
-                                                        const endX = calculatePosition(phaseEndDate, startDate);
+                                                        const startX = calculatePosition(phaseStartDate, startDate, responsiveConstants.MONTH_WIDTH);
+                                                        const endX = calculatePosition(phaseEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                         const width = Math.max(endX - startX, 2);
 
                                                         return (
@@ -493,7 +543,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={yOffset + (rowHeight - 24) / 2 + 12}
+                                                        y={yOffset + (rowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
                                                         complete={milestone.status}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
@@ -501,9 +551,11 @@ const RegionRoadMap = () => {
                                                         shouldWrapText={milestone.shouldWrapText}
                                                         isGrouped={milestone.isGrouped}
                                                         groupLabels={milestone.groupLabels}
-                                                        fullLabel={milestone.fullLabel} // Display2: Only next upcoming milestone
-                                                        showLabel={milestone.showLabel} // Display2: Control label visibility
+                                                        fullLabel={milestone.fullLabel}
+                                                        showLabel={milestone.showLabel}
                                                         hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                                                        fontSize={responsiveConstants.FONT_SIZE}
+                                                        isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                                     />
                                                 ))}
                                             </g>

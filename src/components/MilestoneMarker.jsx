@@ -12,10 +12,14 @@ const MilestoneMarker = ({
     groupLabels = [], // Array of labels for same-date groups
     fullLabel = '', // Display2: Full label for next upcoming milestone only
     hasAdjacentMilestones = false, // Whether there are milestones within threshold
-    showLabel = true // Display2: Control whether to show label
+    showLabel = true, // Display2: Control whether to show label
+    fontSize = '14px', // Responsive font size
+    isMobile = false // Mobile flag for responsive behavior
 }) => {
-    const size = isSG3 ? 14 : 10; // Reduced sizes
-    const yOffset = isSG3 ? -7 : -5; // Adjusted offsets
+    // Responsive sizing
+    const baseSize = isMobile ? 12 : 10;
+    const size = isSG3 ? (isMobile ? 16 : 14) : baseSize;
+    const yOffset = isSG3 ? (isMobile ? -8 : -7) : (isMobile ? -6 : -5);
     const isComplete = complete === 'Completed';
 
     // Text wrapping logic
@@ -33,7 +37,7 @@ const MilestoneMarker = ({
     };
 
     const wrappedLines = wrapText(label, shouldWrapText);
-    const lineHeight = 9; // Reduced height between lines
+    const lineHeight = isMobile ? 14 : 11; // Increased line height for better spacing
     const totalTextHeight = wrappedLines.length * lineHeight;
 
 
@@ -61,11 +65,11 @@ const MilestoneMarker = ({
                     <text
                         key={index}
                         x={x + size / 2}
-                        y={y + size + 12 + (index * lineHeight)} // Increased spacing from 8 to 12
+                        y={y + size + (isMobile ? 18 : 14) + (index * lineHeight)} // Increased initial spacing
                         textAnchor="middle"
                         className="text-l fill-gray-600"
                         style={{
-                            fontSize: '9px', // Reduced font size
+                            fontSize: fontSize,
                             fontFamily: 'system-ui, -apple-system, sans-serif',
                             whiteSpace: 'nowrap'
                         }}
@@ -79,12 +83,12 @@ const MilestoneMarker = ({
                     <text
                         x={x + size / 2}
                         y={labelPosition === 'below'
-                            ? y + size + 8    // 8px below the diamond
-                            : y - 15}         // 15px above the diamond
+                            ? y + size + (isMobile ? 14 : 10)    // Increased spacing below
+                            : y - (isMobile ? 20 : 17)}          // Increased spacing above
                         textAnchor="middle"
                         className="text-l fill-gray-600"
                         style={{
-                            fontSize: '9px',
+                            fontSize: fontSize,
                             fontFamily: 'system-ui, -apple-system, sans-serif',
                             whiteSpace: 'nowrap'
                         }}

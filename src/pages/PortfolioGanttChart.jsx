@@ -5,11 +5,25 @@ import { getTimelineRange, parseDate, calculatePosition } from '../utils/dateUti
 import { processPortfolioData } from '../services/dataService';
 import { differenceInDays } from 'date-fns';
 
-const MONTH_WIDTH = 100;
-const TOTAL_MONTHS = 73;
-const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 10;
-const MILESTONE_LABEL_HEIGHT = 20;
+// Responsive constants - will be calculated dynamically
+const getResponsiveConstants = () => {
+    const screenWidth = window.innerWidth;
+    const isMobile = screenWidth < 768;
+    const isTablet = screenWidth >= 768 && screenWidth < 1024;
+    const isDesktop = screenWidth >= 1024;
+
+    return {
+        MONTH_WIDTH: isMobile ? Math.max(60, screenWidth * 0.08) : isTablet ? 80 : 100,
+        TOTAL_MONTHS: 73,
+        LABEL_WIDTH: isMobile ? Math.min(170, screenWidth * 0.32) : isTablet ? 200 : 220, // Increased spacing
+        BASE_BAR_HEIGHT: isMobile ? 8 : 10,
+        MILESTONE_LABEL_HEIGHT: isMobile ? 16 : 20,
+        VISIBLE_MONTHS: isMobile ? 6 : isTablet ? 9 : 13,
+        TOUCH_TARGET_SIZE: isMobile ? 44 : 24, // Minimum 44px for touch targets
+        FONT_SIZE: isMobile ? '12px' : '14px'
+    };
+};
+
 const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
 const MAX_LABEL_LENGTH = 5; // Maximum length before truncation
 
@@ -27,7 +41,7 @@ const truncateLabel = (label, hasAdjacentMilestones) => {
     return label.substring(0, MAX_LABEL_LENGTH) + '...';
 };
 
-const processMilestonesWithPosition = (milestones, startDate) => {
+const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
     if (!milestones?.length) return [];
 
     // Sort milestones by date
@@ -52,7 +66,7 @@ const processMilestonesWithPosition = (milestones, startDate) => {
 
     sortedMilestones.forEach(milestone => {
         const milestoneDate = parseDate(milestone.date);
-        const x = calculatePosition(milestoneDate, startDate);
+        const x = calculatePosition(milestoneDate, startDate, monthWidth);
         const dateStr = milestoneDate.toISOString();
         
         const milestoneWithX = { ...milestone, x, date: milestoneDate };
@@ -132,30 +146,43 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedParent, setSelectedParent] = useState('All');
+    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants());
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
+    const leftPanelScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
-    const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
+    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
+
+    // Handle window resize for responsive behavior
+    useEffect(() => {
+        const handleResize = () => {
+            setResponsiveConstants(getResponsiveConstants());
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         const data = processPortfolioData();
         setProcessedData(data);
         setFilteredData(data);
 
-        // Initial scroll to show June 2025 to June 2026 (13 months)
+        // Initial scroll to show June 2025 to June 2026 (responsive months)
         if (timelineScrollRef.current) {
             // Calculate scroll position to show June 2025 (current month - 2)
             const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
-            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
 
             // Debug actual widths
             console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
             console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
             console.log('🔍 Timeline container style width:', timelineScrollRef.current.style.width);
-            console.log('🔍 Expected width for 13 months:', 100 * 13, 'px');
+            console.log('🔍 Expected width for visible months:', responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS, 'px');
             console.log('🔍 Screen width:', window.innerWidth);
+            console.log('🔍 Responsive constants:', responsiveConstants);
 
             timelineScrollRef.current.scrollLeft = scrollPosition;
             // Sync gantt scroll position
@@ -175,8 +202,21 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     const handleGanttScroll = (e) => {
         const scrollLeft = e.target.scrollLeft;
+        const scrollTop = e.target.scrollTop;
         if (timelineScrollRef.current && timelineScrollRef.current.scrollLeft !== scrollLeft) {
             timelineScrollRef.current.scrollLeft = scrollLeft;
+        }
+        // Synchronize vertical scroll with left panel
+        if (leftPanelScrollRef.current && leftPanelScrollRef.current.scrollTop !== scrollTop) {
+            leftPanelScrollRef.current.scrollTop = scrollTop;
+        }
+    };
+
+    const handleLeftPanelScroll = (e) => {
+        const scrollTop = e.target.scrollTop;
+        // Synchronize vertical scroll with gantt chart
+        if (ganttScrollRef.current && ganttScrollRef.current.scrollTop !== scrollTop) {
+            ganttScrollRef.current.scrollTop = scrollTop;
         }
     };
 
@@ -193,11 +233,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         }
     };
 
-    const calculateMilestoneLabelHeight = (milestones) => {
+    const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
         if (!milestones?.length) return 0;
 
         // Process milestones to get their positions and grouping info
-        const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+        const processedMilestones = processMilestonesWithPosition(milestones, startDate, monthWidth);
         
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
@@ -226,15 +266,17 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     };
 
     const calculateBarHeight = (project) => {
-        // Calculate height needed for project name wrapping
-        const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 12);
-        
+        // Calculate height needed for project name wrapping (responsive)
+        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Approximate chars per line
+        const textLines = Math.ceil(project.name.length / maxCharsPerLine);
+        const nameHeight = responsiveConstants.BASE_BAR_HEIGHT + ((textLines - 1) * 12);
+
         // Calculate height needed for milestone labels
-        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones);
-        
-        // Return total height needed: name height + milestone label height + padding
-        return nameHeight + milestoneLabelHeight + 16; // Added 16px padding for better spacing
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
+
+        // Return total height needed: name height + milestone label height + padding (responsive)
+        const padding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 20 : 16;
+        return nameHeight + milestoneLabelHeight + padding;
     };
 
     const getTotalHeight = () => {
@@ -245,63 +287,83 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     };
 
     return (
-        <div className="w-full">
-            <div className="flex items-center gap-4 mb-4">
-                <label className="font-medium">Select Portfolio:</label>
-                <select
-                    value={selectedParent}
-                    onChange={handleParentChange}
-                    className="border border-gray-300 rounded px-3 py-1 bg-white"
-                >
-                    {parentNames.map((name) => (
-                        <option key={name} value={name}>
-                            {name}
-                        </option>
-                    ))}
-                </select>
+        <div className="w-full h-screen flex flex-col">
+            {/* Responsive Header */}
+            <div className="flex-shrink-0 p-2 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <label className="font-medium text-sm sm:text-base">Select Portfolio:</label>
+                    <select
+                        value={selectedParent}
+                        onChange={handleParentChange}
+                        className="border border-gray-300 rounded px-2 py-1 sm:px-3 sm:py-1 bg-white text-sm sm:text-base"
+                        style={{ minHeight: responsiveConstants.TOUCH_TARGET_SIZE }}
+                    >
+                        {parentNames.map((name) => (
+                            <option key={name} value={name}>
+                                {name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {/* Fixed Header Area - Timeline Axis */}
-            <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+            <div className="flex-shrink-0 sticky top-0 z-20 bg-white border-b border-gray-200">
                 <div className="relative flex w-full">
                     {/* Sticky Portfolio Names Header */}
                     <div
+                        className="flex-shrink-0 bg-white border-r border-gray-200"
                         style={{
-                            width: LABEL_WIDTH,
+                            width: responsiveConstants.LABEL_WIDTH,
                             position: 'sticky',
                             left: 0,
                             zIndex: 30,
-                            background: 'white',
-                            borderRight: '1px solid #e5e7eb',
                         }}
                     >
-                        <div style={{ height: 30, padding: '6px', fontWeight: 600 }}>Portfolios</div>
+                        <div
+                            className="flex items-center px-2 font-semibold text-gray-700"
+                            style={{
+                                height: responsiveConstants.TOUCH_TARGET_SIZE,
+                                fontSize: responsiveConstants.FONT_SIZE
+                            }}
+                        >
+                            Portfolios
+                        </div>
                     </div>
 
                     {/* Timeline Axis */}
                     <div
                         ref={timelineScrollRef}
-                        className="overflow-x-auto"
-                        style={{ width: `${100 * 13}px` }}
+                        className="flex-1 overflow-x-auto"
+                        style={{
+                            width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                            maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                        }}
                         onScroll={handleTimelineScroll}
                     >
-                        <TimelineAxis startDate={startDate} />
+                        <TimelineAxis
+                            startDate={startDate}
+                            monthWidth={responsiveConstants.MONTH_WIDTH}
+                            fontSize={responsiveConstants.FONT_SIZE}
+                        />
                     </div>
                 </div>
             </div>
 
             {/* Scrollable Content Area */}
-            <div className="relative flex w-full">
-                {/* Sticky Portfolio Names */}
+            <div className="flex-1 relative flex w-full overflow-hidden">
+                {/* Sticky Portfolio Names - Synchronized Scrolling */}
                 <div
+                    ref={leftPanelScrollRef}
+                    className="flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto"
                     style={{
-                        width: LABEL_WIDTH,
+                        width: responsiveConstants.LABEL_WIDTH,
                         position: 'sticky',
                         left: 0,
                         zIndex: 10,
-                        background: 'white',
-                        borderRight: '1px solid #e5e7eb',
+                        height: '100%',
                     }}
+                    onScroll={handleLeftPanelScroll}
                 >
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
@@ -311,19 +373,15 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             return (
                                 <div
                                     key={project.id}
+                                    className="absolute flex items-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
                                     style={{
-                                        position: 'absolute',
                                         top: yOffset,
                                         height: calculateBarHeight(project),
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        paddingLeft: '8px',
-                                        fontSize: '14px',
-                                        borderBottom: '1px solid #f3f4f6',
+                                        paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
+                                        fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        background: 'rgba(0, 0, 0, 0.015)',
-                                        outline: '1px solid rgba(0, 0, 0, 0.08)',
-                                        cursor: project.isDrillable ? 'pointer' : 'default'
+                                        cursor: project.isDrillable ? 'pointer' : 'default',
+                                        minHeight: responsiveConstants.TOUCH_TARGET_SIZE
                                     }}
                                     onClick={() => {
                                         if (project.isDrillable && onDrillToProgram) {
@@ -334,9 +392,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
-                                        <span>{project.name}</span>
+                                        <span className="truncate pr-2" title={project.name}>
+                                            {project.name}
+                                        </span>
                                         {project.isDrillable && (
-                                            <span className="text-xs text-gray-500 ml-2">↗️</span>
+                                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">↗️</span>
                                         )}
                                     </div>
                                 </div>
@@ -348,14 +408,22 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                 {/* Scrollable Timeline Content */}
                 <div
                     ref={ganttScrollRef}
-                    className="overflow-x-auto"
-                    style={{ width: `${100 * 13}px` }}
+                    className="flex-1 overflow-x-auto overflow-y-auto"
+                    style={{
+                        width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                        maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                    }}
                     onScroll={handleGanttScroll}
                 >
-                    <div className="relative" style={{ width: totalWidth }}>
+                    <div className="relative" style={{ width: totalWidth, minHeight: '100%' }}>
                         <svg
                             width={totalWidth}
-                            style={{ height: Math.max(400, getTotalHeight()) }}
+                            height={Math.max(400, getTotalHeight())}
+                            className="block"
+                            style={{
+                                minHeight: getTotalHeight(),
+                                touchAction: 'pan-x pan-y' // Enable smooth touch scrolling
+                            }}
                         >
                             {filteredData.map((project, index) => {
                                 // Calculate cumulative Y offset including all previous projects' full heights
@@ -365,8 +433,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
-                                const startX = calculatePosition(projectStartDate, startDate) + 0;
-                                const endX = calculatePosition(projectEndDate, startDate) + 0;
+                                const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
+                                const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;
 
                                 // Calculate the project's total height and center point
@@ -374,22 +442,25 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                 const centerY = yOffset + totalHeight / 2;
 
                                 // Process milestones with position information
-                                const milestones = processMilestonesWithPosition(project.milestones, startDate);
+                                const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH);
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
-                                        {/* Render bar */}
+                                        {/* Render bar - responsive height */}
                                         <rect
                                             key={`bar-${project.id}`}
                                             x={startX}
-                                            y={yOffset + (totalHeight - 24) / 2} // Center the bar in the available space
+                                            y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                             width={Math.max(width, 2)}
-                                            height={24}
+                                            height={Math.min(responsiveConstants.TOUCH_TARGET_SIZE, 24)}
                                             rx={4}
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                             className={`transition-opacity duration-150 hover:opacity-90 ${
                                                 project.isDrillable ? 'cursor-pointer' : 'cursor-default'
                                             }`}
+                                            style={{
+                                                minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
+                                            }}
                                             onClick={() => {
                                                 if (project.isDrillable && onDrillToProgram) {
                                                     onDrillToProgram(project.id, project.name);
@@ -399,12 +470,12 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                             }}
                                         />
 
-                                        {/* Render milestones */}
+                                        {/* Render milestones - responsive positioning */}
                                         {milestones.map((milestone, mIndex) => (
                                             <MilestoneMarker
                                                 key={`${project.id}-milestone-${mIndex}`}
                                                 x={milestone.x}
-                                                y={yOffset + (totalHeight - 24) / 2 + 12} // Align with the center of the bar
+                                                y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
                                                 complete={milestone.status}
                                                 label={milestone.label}
                                                 isSG3={milestone.isSG3}
@@ -412,9 +483,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                                 shouldWrapText={milestone.shouldWrapText}
                                                 isGrouped={milestone.isGrouped}
                                                 groupLabels={milestone.groupLabels}
-                                                fullLabel={milestone.fullLabel} // Display2: Only next upcoming milestone
+                                                fullLabel={milestone.fullLabel}
                                                 hasAdjacentMilestones={milestone.hasAdjacentMilestones}
-                                                showLabel={milestone.showLabel} // Display2: Control label visibility
+                                                showLabel={milestone.showLabel}
+                                                fontSize={responsiveConstants.FONT_SIZE}
+                                                isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                             />
                                         ))}
                                     </g>

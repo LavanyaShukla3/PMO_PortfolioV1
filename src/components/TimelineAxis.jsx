@@ -1,16 +1,21 @@
 import React from 'react';
 import { format, addMonths, subMonths } from 'date-fns';
 
-const TimelineAxis = ({ startDate = new Date() }) => {
+const TimelineAxis = ({
+    startDate = new Date(),
+    monthWidth = 100,
+    fontSize = '14px'
+}) => {
     const generateMonths = () => {
         const months = [];
         console.log('TimelineAxis startDate:', startDate);
         for (let i = 0; i <= 72; i++) {
             const currentMonth = addMonths(startDate, i);
-            const xPosition = i * 100; // Each month is 100px wide
+            const xPosition = i * monthWidth; // Responsive month width
             months.push({
                 date: currentMonth,
                 label: format(currentMonth, 'MMM yyyy'),
+                shortLabel: format(currentMonth, 'MMM'), // Short label for mobile
                 xPosition: xPosition
             });
 
@@ -34,6 +39,9 @@ const TimelineAxis = ({ startDate = new Date() }) => {
 
     const months = generateMonths();
 
+    // Determine if we should show short labels (mobile)
+    const isMobile = monthWidth < 80;
+
     return (
         <div className="flex bg-white border-b border-gray-200">
             {/* Scrollable timeline */}
@@ -43,19 +51,22 @@ const TimelineAxis = ({ startDate = new Date() }) => {
                     // Take full width of parent container
                     width: '100%',
                     // Set total scrollable width to show all 73 months (-36 to +36)
-                    minWidth: `${100 * 73}px`
+                    minWidth: `${monthWidth * 73}px`
                 }}
             >
                 {months.map((month) => (
                     <div
                         key={month.label}
-                        className={`
-                            flex-shrink-0 w-[100px] p-2 
-                            text-xs font-medium text-gray-600 
-                            border-r border-gray-200
-                        `}
+                        className="flex-shrink-0 p-1 sm:p-2 text-xs font-medium text-gray-600 border-r border-gray-200 flex items-center justify-center"
+                        style={{
+                            width: `${monthWidth}px`,
+                            fontSize: fontSize,
+                            minHeight: '44px' // Touch-friendly height
+                        }}
                     >
-                        {month.label}
+                        <span className="text-center leading-tight">
+                            {isMobile ? month.shortLabel : month.label}
+                        </span>
                     </div>
                 ))}
             </div>

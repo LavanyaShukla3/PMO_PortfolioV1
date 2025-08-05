@@ -6,12 +6,26 @@ import { processProgramData } from '../services/dataService';
 import { differenceInDays } from 'date-fns';
 import programData from '../services/ProgramData.json';
 
-const MONTH_WIDTH = 100;
-const TOTAL_MONTHS = 73;
-const LABEL_WIDTH = 200;
-const BASE_BAR_HEIGHT = 40; // Reduced from 30
-const PROGRAM_BAR_HEIGHT = BASE_BAR_HEIGHT + 2; // Reduced height difference from 10 to 6
-const MILESTONE_LABEL_HEIGHT = 16; // Reduced from 20
+// Responsive constants - will be calculated dynamically
+const getResponsiveConstants = () => {
+    const screenWidth = window.innerWidth;
+    const isMobile = screenWidth < 768;
+    const isTablet = screenWidth >= 768 && screenWidth < 1024;
+    const isDesktop = screenWidth >= 1024;
+
+    return {
+        MONTH_WIDTH: isMobile ? Math.max(60, screenWidth * 0.08) : isTablet ? 80 : 100,
+        TOTAL_MONTHS: 73,
+        LABEL_WIDTH: isMobile ? Math.min(170, screenWidth * 0.32) : isTablet ? 200 : 220, // Increased spacing
+        BASE_BAR_HEIGHT: isMobile ? 32 : 40,
+        PROGRAM_BAR_HEIGHT: isMobile ? 34 : 42,
+        MILESTONE_LABEL_HEIGHT: isMobile ? 14 : 16,
+        VISIBLE_MONTHS: isMobile ? 6 : isTablet ? 9 : 13,
+        TOUCH_TARGET_SIZE: isMobile ? 44 : 24,
+        FONT_SIZE: isMobile ? '12px' : '14px'
+    };
+};
+
 const DAYS_THRESHOLD = 16;
 const MAX_LABEL_LENGTH = 5;
 
@@ -24,7 +38,7 @@ const statusColors = {
 };
 
 // Reuse the same milestone processing logic from PortfolioGanttChart
-const processMilestonesWithPosition = (milestones, startDate) => {
+const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
     if (!milestones?.length) return [];
 
     const sortedMilestones = [...milestones].sort((a, b) => {
@@ -47,7 +61,7 @@ const processMilestonesWithPosition = (milestones, startDate) => {
 
     sortedMilestones.forEach(milestone => {
         const milestoneDate = parseDate(milestone.date);
-        const x = calculatePosition(milestoneDate, startDate);
+        const x = calculatePosition(milestoneDate, startDate, monthWidth);
         const dateStr = milestoneDate.toISOString();
         
         const milestoneWithX = { ...milestone, x, date: milestoneDate };
@@ -121,12 +135,14 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('');
+    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants());
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
+    const leftPanelScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
-    const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
+    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
     // Get unique program names and set default selection
     const programNames = Array.from(new Set(programData
@@ -134,10 +150,20 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
         .map(item => item.COE_ROADMAP_PARENT_NAME)
     ));
 
+    // Handle window resize for responsive behavior
+    useEffect(() => {
+        const handleResize = () => {
+            setResponsiveConstants(getResponsiveConstants());
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         const data = processProgramData();
         setProcessedData(data);
-        
+
         // Set default program (first in the list)
         if (programNames.length > 0 && !selectedProgram) {
             setSelectedProgram(programNames[0]);
@@ -165,17 +191,17 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     }, [selectedProjectId, processedData]);
 
     useEffect(() => {
-        // Initial scroll to show June 2025 to June 2026 (13 months)
+        // Initial scroll to show June 2025 to June 2026 (responsive months)
         if (timelineScrollRef.current) {
             const monthsFromStart = 36;
-            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
             timelineScrollRef.current.scrollLeft = scrollPosition;
             // Sync gantt scroll position
             if (ganttScrollRef.current) {
                 ganttScrollRef.current.scrollLeft = scrollPosition;
             }
         }
-    }, []);
+    }, [responsiveConstants.MONTH_WIDTH]);
 
     const handleProgramChange = (e) => {
         setSelectedProgram(e.target.value);
@@ -191,15 +217,28 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
 
     const handleGanttScroll = (e) => {
         const scrollLeft = e.target.scrollLeft;
+        const scrollTop = e.target.scrollTop;
         if (timelineScrollRef.current) {
             timelineScrollRef.current.scrollLeft = scrollLeft;
         }
+        // Synchronize vertical scroll with left panel
+        if (leftPanelScrollRef.current && leftPanelScrollRef.current.scrollTop !== scrollTop) {
+            leftPanelScrollRef.current.scrollTop = scrollTop;
+        }
     };
 
-    const calculateMilestoneLabelHeight = (milestones) => {
+    const handleLeftPanelScroll = (e) => {
+        const scrollTop = e.target.scrollTop;
+        // Synchronize vertical scroll with gantt chart
+        if (ganttScrollRef.current && ganttScrollRef.current.scrollTop !== scrollTop) {
+            ganttScrollRef.current.scrollTop = scrollTop;
+        }
+    };
+
+    const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
         if (!milestones?.length) return 0;
 
-        const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+        const processedMilestones = processMilestonesWithPosition(milestones, startDate, monthWidth);
         
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
@@ -226,11 +265,13 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
 
     const calculateBarHeight = (project) => {
         const isProgram = project.isProgram;
-        const baseHeight = isProgram ? PROGRAM_BAR_HEIGHT : BASE_BAR_HEIGHT;
-        const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = baseHeight + ((textLines - 1) * 10); // Reduced line height from 12 to 10
-        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones);
-        return nameHeight + milestoneLabelHeight + 8; // Reduced padding from 16 to 8
+        const baseHeight = isProgram ? responsiveConstants.PROGRAM_BAR_HEIGHT : responsiveConstants.BASE_BAR_HEIGHT;
+        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Responsive chars per line
+        const textLines = Math.ceil(project.name.length / maxCharsPerLine);
+        const nameHeight = baseHeight + ((textLines - 1) * 10);
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
+        const padding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 12 : 8;
+        return nameHeight + milestoneLabelHeight + padding;
     };
 
     const getTotalHeight = () => {
@@ -287,7 +328,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                     {/* Sticky Program Names Header */}
                     <div
                         style={{
-                            width: LABEL_WIDTH,
+                            width: responsiveConstants.LABEL_WIDTH,
                             position: 'sticky',
                             left: 0,
                             zIndex: 30,
@@ -312,16 +353,20 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
 
             {/* Single Synchronized Scroll Container */}
             <div className="relative flex w-full">
-                {/* Sticky Program Names */}
+                {/* Sticky Program Names - Synchronized Scrolling */}
                 <div
+                    ref={leftPanelScrollRef}
+                    className="overflow-y-auto"
                     style={{
-                        width: LABEL_WIDTH,
+                        width: responsiveConstants.LABEL_WIDTH,
                         position: 'sticky',
                         left: 0,
                         zIndex: 10,
                         background: 'white',
                         borderRight: '1px solid #e5e7eb',
+                        height: '100%',
                     }}
+                    onScroll={handleLeftPanelScroll}
                 >
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
@@ -386,7 +431,9 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                 const milestones = processMilestonesWithPosition(project.milestones, startDate);
 
                                 const isProgram = project.isProgram;
-                                const barHeight = isProgram ? 24 : 18; // Reduced heights (was 34/24)
+                                const barHeight = isProgram ?
+                                    Math.min(responsiveConstants.TOUCH_TARGET_SIZE, 24) :
+                                    Math.min(responsiveConstants.TOUCH_TARGET_SIZE - 6, 18);
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
@@ -414,14 +461,14 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                             />
                                         )}
 
-                                        {/* Program label above bar */}
+                                        {/* Program label above bar - responsive */}
                                         {isProgram && (
                                             <text
                                                 x={startX + width / 2}
                                                 y={yOffset + (totalHeight - barHeight) / 2 - 5}
                                                 textAnchor="middle"
                                                 className="text-xs font-semibold tracking-wider fill-gray-600"
-                                                style={{ fontSize: '10px' }}
+                                                style={{ fontSize: responsiveConstants.FONT_SIZE === '12px' ? '9px' : '10px' }}
                                             >
                                                 PROGRAM
                                             </text>
@@ -445,7 +492,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                             <MilestoneMarker
                                                 key={`${project.id}-milestone-${mIndex}`}
                                                 x={milestone.x}
-                                                y={yOffset + (totalHeight - 24) / 2 + 12}
+                                                y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
                                                 complete={milestone.status}
                                                 label={milestone.label}
                                                 isSG3={milestone.isSG3}
@@ -453,9 +500,11 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                                 shouldWrapText={milestone.shouldWrapText}
                                                 isGrouped={milestone.isGrouped}
                                                 groupLabels={milestone.groupLabels}
-                                                fullLabel={milestone.fullLabel} // Display2: Only next upcoming milestone
-                                                showLabel={milestone.showLabel} // Display2: Control label visibility
+                                                fullLabel={milestone.fullLabel}
+                                                showLabel={milestone.showLabel}
                                                 hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                                                fontSize={responsiveConstants.FONT_SIZE}
+                                                isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                             />
                                         ))}
                                     </g>

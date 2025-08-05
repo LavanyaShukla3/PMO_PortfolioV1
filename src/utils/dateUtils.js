@@ -61,10 +61,11 @@ export const getInitialViewportRange = () => {
  * Calculates the x-position for a date on the timeline
  * @param {Date} date - The date to position
  * @param {Date} startDate - Timeline start date
+ * @param {number} monthWidth - Width per month in pixels (default: 100)
  * @returns {number} X-position in pixels
  */
-export const calculatePosition = (date, startDate) => {
-    
+export const calculatePosition = (date, startDate, monthWidth = MONTH_WIDTH) => {
+
     if (!date || !startDate) {
         console.warn('Missing date or startDate:', { date, startDate });
         return 0;
@@ -77,8 +78,9 @@ export const calculatePosition = (date, startDate) => {
         days,
         daysPerMonth: 30.44,
         monthsFromStart: days / 30.44,
-        position: Math.max(0, (days / 30.44) * MONTH_WIDTH)
+        monthWidth,
+        position: Math.max(0, (days / 30.44) * monthWidth)
     });
 
-    return Math.max(0, (days / 30.44) * MONTH_WIDTH);
+    return Math.max(0, (days / 30.44) * monthWidth);
 };

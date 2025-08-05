@@ -63,7 +63,7 @@ const statusColors = {
 // };
 
 // export default GanttBar;
-const GanttBar = ({ 
+const GanttBar = ({
     data,
     y,
     width,
@@ -71,12 +71,16 @@ const GanttBar = ({
     label,
     status,
     milestones = [],
-    onBarClick
+    onBarClick,
+    isMobile = false,
+    fontSize = '14px',
+    touchTargetSize = 24
 }) => {
     const barColor = statusColors[status] || statusColors.Grey;
-    
-    // Text wrapping for long labels
-    const wrapText = (text, maxWidth = 180) => { // 180px max width for label
+
+    // Responsive text wrapping for long labels
+    const maxWidth = isMobile ? 120 : 180; // Responsive max width
+    const wrapText = (text, maxWidth = maxWidth) => {
         const words = text.split(' ');
         let lines = [];
         let currentLine = '';
@@ -99,20 +103,23 @@ const GanttBar = ({
     };
 
     const labelLines = wrapText(label);
-    const lineHeight = 16; // pixels between lines
+    const lineHeight = isMobile ? 14 : 16; // Responsive line height
     
     return (
         <g className="gantt-bar">
             
-            {/* Main bar */}
+            {/* Main bar - responsive height */}
             <rect
                 x={startX}
-                y={y + (calculateBarHeight(data) - 24) / 2} // Center the bar vertically in its space
+                y={y + (calculateBarHeight(data) - touchTargetSize) / 2}
                 width={Math.max(width, 2)} // Minimum width of 2px
-                height={24}
+                height={Math.min(touchTargetSize, isMobile ? 32 : 24)}
                 rx={4}
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
+                style={{
+                    minHeight: touchTargetSize > 24 ? '32px' : '24px'
+                }}
                 onClick={() => onBarClick?.(data)}
             >
                 <title>{label}</title>

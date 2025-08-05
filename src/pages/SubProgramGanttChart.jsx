@@ -7,11 +7,24 @@ import subProgramData from '../services/SubProgramData.json';
 import investmentData from '../services/investmentData.json';
 import { differenceInDays } from 'date-fns';
 
-const MONTH_WIDTH = 100;
-const TOTAL_MONTHS = 73;
-const LABEL_WIDTH = 180; // Reduced from 200
-const BASE_BAR_HEIGHT = 16; // Reduced from 20
-const MILESTONE_LABEL_HEIGHT = 12; // Reduced from 16
+// Responsive constants
+const getResponsiveConstants = () => {
+    const screenWidth = window.innerWidth;
+    const isMobile = screenWidth < 768;
+    const isTablet = screenWidth >= 768 && screenWidth < 1024;
+
+    return {
+        MONTH_WIDTH: isMobile ? Math.max(60, screenWidth * 0.08) : isTablet ? 80 : 100,
+        TOTAL_MONTHS: 73,
+        LABEL_WIDTH: isMobile ? Math.min(170, screenWidth * 0.32) : isTablet ? 180 : 200, // Increased spacing
+        BASE_BAR_HEIGHT: isMobile ? 14 : 16,
+        MILESTONE_LABEL_HEIGHT: isMobile ? 10 : 12,
+        VISIBLE_MONTHS: isMobile ? 6 : isTablet ? 9 : 13,
+        TOUCH_TARGET_SIZE: isMobile ? 44 : 24,
+        FONT_SIZE: isMobile ? '12px' : '14px'
+    };
+};
+
 const DAYS_THRESHOLD = 16;
 const MAX_LABEL_LENGTH = 5;
 
@@ -38,12 +51,14 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedSubProgram, setSelectedSubProgram] = useState('');
+    const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants());
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
+    const leftPanelScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
-    const totalWidth = MONTH_WIDTH * TOTAL_MONTHS;
+    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
     // Get unique sub-program names (only the parent sub-programs)
     const subProgramNames = Array.from(new Set(subProgramData
@@ -51,10 +66,20 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         .map(item => item.COE_ROADMAP_PARENT_NAME)
     )).sort();
 
+    // Handle window resize for responsive behavior
+    useEffect(() => {
+        const handleResize = () => {
+            setResponsiveConstants(getResponsiveConstants());
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         const data = processSubProgramData();
         setProcessedData(data);
-        
+
         // Set default sub-program (first in the list)
         if (subProgramNames.length > 0 && !selectedSubProgram) {
             setSelectedSubProgram(subProgramNames[0]);
@@ -82,17 +107,17 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     }, [selectedSubProgramId, processedData]);
 
     useEffect(() => {
-        // Initial scroll to show June 2025 to June 2026 (13 months)
+        // Initial scroll to show June 2025 to June 2026 (responsive months)
         if (timelineScrollRef.current) {
             const monthsFromStart = 36;
-            const scrollPosition = (monthsFromStart - 2) * MONTH_WIDTH; // June 2025 is month 34
+            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
             timelineScrollRef.current.scrollLeft = scrollPosition;
             // Sync gantt scroll position
             if (ganttScrollRef.current) {
                 ganttScrollRef.current.scrollLeft = scrollPosition;
             }
         }
-    }, []);
+    }, [responsiveConstants.MONTH_WIDTH]);
 
     const handleSubProgramChange = (e) => {
         setSelectedSubProgram(e.target.value);
@@ -108,8 +133,21 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
     const handleGanttScroll = (e) => {
         const scrollLeft = e.target.scrollLeft;
+        const scrollTop = e.target.scrollTop;
         if (timelineScrollRef.current) {
             timelineScrollRef.current.scrollLeft = scrollLeft;
+        }
+        // Synchronize vertical scroll with left panel
+        if (leftPanelScrollRef.current && leftPanelScrollRef.current.scrollTop !== scrollTop) {
+            leftPanelScrollRef.current.scrollTop = scrollTop;
+        }
+    };
+
+    const handleLeftPanelScroll = (e) => {
+        const scrollTop = e.target.scrollTop;
+        // Synchronize vertical scroll with gantt chart
+        if (ganttScrollRef.current && ganttScrollRef.current.scrollTop !== scrollTop) {
+            ganttScrollRef.current.scrollTop = scrollTop;
         }
     };
 
@@ -168,11 +206,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         return upcomingMilestones.length > 0 ? upcomingMilestones[0] : null;
     };
 
-    const calculateMilestoneLabelHeight = (milestones) => {
+    const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
         if (!milestones?.length) return 0;
 
         // Process milestones to get their positions and grouping info
-        const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+        const processedMilestones = processMilestonesWithPosition(milestones, startDate, monthWidth);
         
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
@@ -201,19 +239,21 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     };
 
     const calculateBarHeight = (project) => {
-        // Calculate height needed for project name wrapping
-        const textLines = Math.ceil(project.name.length / 30);
-        const nameHeight = BASE_BAR_HEIGHT + ((textLines - 1) * 10); // Reduced from 12
-        
+        // Calculate height needed for project name wrapping (responsive)
+        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Responsive chars per line
+        const textLines = Math.ceil(project.name.length / maxCharsPerLine);
+        const nameHeight = responsiveConstants.BASE_BAR_HEIGHT + ((textLines - 1) * 10);
+
         // Calculate height needed for milestone labels
         const milestones = getMilestones(project.id);
-        const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones);
-        
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
+
         // Add extra height for sub-program rows to make them pop
         const extraHeight = project.isSubProgram ? 10 : 0;
-        
-        // Return total height needed: name height + milestone label height + padding + extra height
-        return nameHeight + milestoneLabelHeight + 8 + extraHeight; // Reduced from 16px padding
+
+        // Return total height needed: name height + milestone label height + padding + extra height (responsive)
+        const padding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 12 : 8;
+        return nameHeight + milestoneLabelHeight + padding + extraHeight;
     };
 
     const getTotalHeight = () => {
@@ -229,7 +269,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         return label.substring(0, MAX_LABEL_LENGTH) + '...';
     };
 
-    const processMilestonesWithPosition = (milestones, startDate) => {
+    const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
         if (!milestones?.length) return [];
 
         // Sort milestones by date
@@ -254,7 +294,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
         sortedMilestones.forEach(milestone => {
             const milestoneDate = parseDate(milestone.date);
-            const x = calculatePosition(milestoneDate, startDate);
+            const x = calculatePosition(milestoneDate, startDate, monthWidth);
             const dateStr = milestoneDate.toISOString();
             
             const milestoneWithX = { ...milestone, x, date: milestoneDate };
@@ -373,7 +413,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                     {/* Sticky Sub-Program Names Header */}
                     <div
                         style={{
-                            width: LABEL_WIDTH,
+                            width: responsiveConstants.LABEL_WIDTH,
                             position: 'sticky',
                             left: 0,
                             zIndex: 30,
@@ -398,16 +438,20 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
             {/* Single Synchronized Scroll Container */}
             <div className="relative flex w-full">
-                {/* Sticky Sub-Program Names */}
+                {/* Sticky Sub-Program Names - Synchronized Scrolling */}
                 <div
+                    ref={leftPanelScrollRef}
+                    className="overflow-y-auto"
                     style={{
-                        width: LABEL_WIDTH,
+                        width: responsiveConstants.LABEL_WIDTH,
                         position: 'sticky',
                         left: 0,
                         zIndex: 10,
                         background: 'white',
                         borderRight: '1px solid #e5e7eb',
+                        height: '100%',
                     }}
+                    onScroll={handleLeftPanelScroll}
                 >
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {filteredData.map((project, index) => {
@@ -578,13 +622,13 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
                                         {/* Process and render milestones with complex positioning logic */}
                                         {(() => {
-                                            const processedMilestones = processMilestonesWithPosition(milestones, startDate);
+                                            const processedMilestones = processMilestonesWithPosition(milestones, startDate, responsiveConstants.MONTH_WIDTH);
                                             
                                             return processedMilestones.map((milestone, mIndex) => (
                                                 <MilestoneMarker
                                                     key={`${project.id}-milestone-${mIndex}`}
                                                     x={milestone.x}
-                                                    y={yOffset + (totalHeight - 14) / 2 + 7}
+                                                    y={yOffset + (totalHeight - responsiveConstants.BASE_BAR_HEIGHT) / 2 + (responsiveConstants.BASE_BAR_HEIGHT / 2)}
                                                     complete={milestone.status}
                                                     label={milestone.label}
                                                     isSG3={milestone.isSG3}
@@ -592,9 +636,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                     shouldWrapText={milestone.shouldWrapText}
                                                     isGrouped={milestone.isGrouped}
                                                     groupLabels={milestone.groupLabels}
-                                                    fullLabel={milestone.fullLabel} // Display2: Only next upcoming milestone
-                                                    showLabel={milestone.showLabel} // Display2: Control label visibility
+                                                    fullLabel={milestone.fullLabel}
+                                                    showLabel={milestone.showLabel}
                                                     hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                                                    fontSize={responsiveConstants.FONT_SIZE}
+                                                    isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                                 />
                                             ));
                                         })()}
