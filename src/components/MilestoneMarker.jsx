@@ -1,7 +1,7 @@
 import React from 'react';
 
-const MilestoneMarker = ({ 
-    x, 
+const MilestoneMarker = ({
+    x,
     y,
     complete,   // This is your MILESTONE_STATUS
     label,
@@ -10,8 +10,9 @@ const MilestoneMarker = ({
     shouldWrapText = false, // Whether to wrap text based on proximity
     isGrouped = false, // Whether this is part of a same-date group
     groupLabels = [], // Array of labels for same-date groups
-    truncatedLabel = '', // Truncated version of the label
-    hasAdjacentMilestones = false // Whether there are milestones within threshold
+    fullLabel = '', // Display2: Full label for next upcoming milestone only
+    hasAdjacentMilestones = false, // Whether there are milestones within threshold
+    showLabel = true // Display2: Control whether to show label
 }) => {
     const size = isSG3 ? 14 : 10; // Reduced sizes
     const yOffset = isSG3 ? -7 : -5; // Adjusted offsets
@@ -53,9 +54,9 @@ const MilestoneMarker = ({
                 className="cursor-pointer transition-colors duration-150"
             />
 
-            {/* Label rendering based on type */}
-            {isGrouped ? (
-                // Stacked milestone labels with commas
+            {/* Label rendering based on type - Display2: Only show labels for next upcoming milestone */}
+            {showLabel && (isGrouped ? (
+                // Stacked milestone labels with commas - Display2: Only if showLabel is true
                 groupLabels.map((label, index) => (
                     <text
                         key={index}
@@ -73,23 +74,25 @@ const MilestoneMarker = ({
                     </text>
                 ))
             ) : (
-                // Individual milestone label
-                <text
-                    x={x + size / 2}
-                                            y={labelPosition === 'below' 
-                            ? y + size + 8
-                            : y - 15} // Increased spacing: below from 5 to 8, above from 12 to 15
-                    textAnchor="middle"
-                    className="text-l fill-gray-600"
-                    style={{
-                        fontSize: '9px', // Reduced font size
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                        whiteSpace: 'nowrap'
-                    }}
-                >
-                    {truncatedLabel}
-                </text>
-            )}
+                // Individual milestone label - Display2: Only show if showLabel is true
+                fullLabel && (
+                    <text
+                        x={x + size / 2}
+                        y={labelPosition === 'below'
+                            ? y + size + 8    // 8px below the diamond
+                            : y - 15}         // 15px above the diamond
+                        textAnchor="middle"
+                        className="text-l fill-gray-600"
+                        style={{
+                            fontSize: '9px',
+                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                            whiteSpace: 'nowrap'
+                        }}
+                    >
+                        {fullLabel}
+                    </text>
+                )
+            ))}
         </g>
     );
 };

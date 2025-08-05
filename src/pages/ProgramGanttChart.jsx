@@ -26,12 +26,21 @@ const statusColors = {
 // Reuse the same milestone processing logic from PortfolioGanttChart
 const processMilestonesWithPosition = (milestones, startDate) => {
     if (!milestones?.length) return [];
-    
+
     const sortedMilestones = [...milestones].sort((a, b) => {
         const dateA = parseDate(a.date);
         const dateB = parseDate(b.date);
         return dateA - dateB;
     });
+
+    // Display2: Find the next upcoming milestone (by due date, ascending)
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
+    const nextUpcomingMilestone = sortedMilestones.find(milestone => {
+        const milestoneDate = parseDate(milestone.date);
+        milestoneDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
+        return milestoneDate >= currentDate;
+    }) || sortedMilestones[sortedMilestones.length - 1]; // Fallback to last milestone if all are past
 
     const milestonesWithX = [];
     const sameDateGroups = new Map();
@@ -65,12 +74,18 @@ const processMilestonesWithPosition = (milestones, startDate) => {
         
         const hasAdjacentMilestones = distToPrev <= DAYS_THRESHOLD || distToNext <= DAYS_THRESHOLD;
 
+        // Display2: Determine if this milestone should show a label
+        const milestoneDate = new Date(milestone.date);
+        milestoneDate.setHours(0, 0, 0, 0);
+        const nextUpcomingDate = parseDate(nextUpcomingMilestone.date);
+        nextUpcomingDate.setHours(0, 0, 0, 0);
+        const shouldShowLabel = milestoneDate.getTime() === nextUpcomingDate.getTime();
+
         if (isPartOfGroup) {
-            const groupLabels = sameDateMilestones.map(m => 
-                m.label.length > MAX_LABEL_LENGTH && hasAdjacentMilestones 
-                    ? m.label.substring(0, MAX_LABEL_LENGTH) + '...' 
-                    : m.label
-            );
+            // Display2: Only show labels if this group contains the next upcoming milestone
+            const groupLabels = shouldShowLabel
+                ? sameDateMilestones.map(m => m.label) // Show all labels in the upcoming group, no truncation
+                : []; // Empty array = no labels shown
 
             return {
                 ...milestone,
@@ -78,7 +93,8 @@ const processMilestonesWithPosition = (milestones, startDate) => {
                 groupLabels,
                 labelPosition: 'below',
                 shouldWrapText: false,
-                hasAdjacentMilestones
+                hasAdjacentMilestones,
+                showLabel: shouldShowLabel
             };
         }
 
@@ -86,18 +102,17 @@ const processMilestonesWithPosition = (milestones, startDate) => {
         if (prevMilestone && distToPrev <= DAYS_THRESHOLD) {
             labelPosition = lastPosition === 'below' ? 'above' : 'below';
         }
-        
+
         lastPosition = labelPosition;
-        
-        return { 
+
+        return {
             ...milestone,
             isGrouped: false,
             labelPosition,
             shouldWrapText: false,
-            truncatedLabel: hasAdjacentMilestones && milestone.label.length > MAX_LABEL_LENGTH 
-                ? milestone.label.substring(0, MAX_LABEL_LENGTH) + '...' 
-                : milestone.label,
-            hasAdjacentMilestones
+            fullLabel: shouldShowLabel ? milestone.label : '', // Display2: Only show label for next upcoming
+            hasAdjacentMilestones,
+            showLabel: shouldShowLabel
         };
     });
 };
@@ -438,7 +453,8 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                                 shouldWrapText={milestone.shouldWrapText}
                                                 isGrouped={milestone.isGrouped}
                                                 groupLabels={milestone.groupLabels}
-                                                truncatedLabel={milestone.truncatedLabel}
+                                                fullLabel={milestone.fullLabel} // Display2: Only next upcoming milestone
+                                                showLabel={milestone.showLabel} // Display2: Control label visibility
                                                 hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                             />
                                         ))}
