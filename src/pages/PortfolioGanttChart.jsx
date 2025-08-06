@@ -372,7 +372,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         <div className="w-full h-screen flex flex-col">
             {/* Responsive Header */}
             <div className="flex-shrink-0 p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
                     <label className="font-medium text-sm sm:text-base">Select Portfolio:</label>
                     <select
                         value={selectedParent}
@@ -386,6 +386,51 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             </option>
                         ))}
                     </select>
+                </div>
+
+                {/* Milestone Legend */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Milestone Legend</h3>
+                    <div className="flex flex-wrap gap-4 sm:gap-6">
+                        {/* Incomplete Milestone */}
+                        <div className="flex items-center gap-2">
+                            <svg width="14" height="14" viewBox="0 0 16 16">
+                                <path
+                                    d="M8 2 L14 8 L8 14 L2 8 Z"
+                                    fill="white"
+                                    stroke="#3B82F6"
+                                    strokeWidth="2"
+                                />
+                            </svg>
+                            <span className="text-xs sm:text-sm text-gray-600">Incomplete</span>
+                        </div>
+
+                        {/* Complete Milestone */}
+                        <div className="flex items-center gap-2">
+                            <svg width="14" height="14" viewBox="0 0 16 16">
+                                <path
+                                    d="M8 2 L14 8 L8 14 L2 8 Z"
+                                    fill="#3B82F6"
+                                    stroke="#3B82F6"
+                                    strokeWidth="2"
+                                />
+                            </svg>
+                            <span className="text-xs sm:text-sm text-gray-600">Complete</span>
+                        </div>
+
+                        {/* Stacked Milestones */}
+                        <div className="flex items-center gap-2">
+                            <svg width="14" height="14" viewBox="0 0 16 16">
+                                <path
+                                    d="M8 2 L14 8 L8 14 L2 8 Z"
+                                    fill="#1F2937"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                />
+                            </svg>
+                            <span className="text-xs sm:text-sm text-gray-600">Multiple Milestones</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
