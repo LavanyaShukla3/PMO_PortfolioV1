@@ -568,12 +568,9 @@ const RegionRoadMap = () => {
                                             }}
                                         >
                                             <div className="flex items-center justify-between w-full">
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col justify-center">
                                                     <span className="font-medium text-gray-800 truncate pr-2" title={project.name}>
                                                         {project.name}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 mt-1">
-                                                        {project.region}{project.market ? `/${project.market}` : ''} • {project.function} • Tier {project.tier}
                                                     </span>
                                                 </div>
                                             </div>
