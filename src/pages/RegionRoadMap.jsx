@@ -12,35 +12,45 @@ const ZOOM_LEVELS = {
         VISIBLE_MONTHS: 24,
         FONT_SIZE: '8px',
         LABEL_WIDTH: 160,
-        TOUCH_TARGET_SIZE: 16
+        TOUCH_TARGET_SIZE: 16,
+        MILESTONE_FONT_SIZE: '8px',
+        PROJECT_SCALE: 1.5 // Show 50% more projects
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
         VISIBLE_MONTHS: 18,
         FONT_SIZE: '10px',
         LABEL_WIDTH: 220,
-        TOUCH_TARGET_SIZE: 20
+        TOUCH_TARGET_SIZE: 20,
+        MILESTONE_FONT_SIZE: '9px',
+        PROJECT_SCALE: 1.25 // Show 25% more projects
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
         VISIBLE_MONTHS: 13,
         FONT_SIZE: '14px',
         LABEL_WIDTH: 320,
-        TOUCH_TARGET_SIZE: 24
+        TOUCH_TARGET_SIZE: 24,
+        MILESTONE_FONT_SIZE: '10px', // Reduced from default
+        PROJECT_SCALE: 1.0 // Normal project count
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
         VISIBLE_MONTHS: 10,
         FONT_SIZE: '16px',
         LABEL_WIDTH: 400,
-        TOUCH_TARGET_SIZE: 30
+        TOUCH_TARGET_SIZE: 30,
+        MILESTONE_FONT_SIZE: '12px',
+        PROJECT_SCALE: 0.8 // Show 20% fewer projects
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
         VISIBLE_MONTHS: 8,
         FONT_SIZE: '18px',
         LABEL_WIDTH: 480,
-        TOUCH_TARGET_SIZE: 36
+        TOUCH_TARGET_SIZE: 36,
+        MILESTONE_FONT_SIZE: '14px',
+        PROJECT_SCALE: 0.6 // Show 40% fewer projects
     }
 };
 
@@ -63,6 +73,8 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
         VISIBLE_MONTHS: isMobile ? Math.max(6, Math.round(zoomConfig.VISIBLE_MONTHS * 0.6)) : zoomConfig.VISIBLE_MONTHS,
         TOUCH_TARGET_SIZE: Math.max(isMobile ? 44 : 16, Math.round(zoomConfig.TOUCH_TARGET_SIZE * mobileAdjustment)),
         FONT_SIZE: zoomConfig.FONT_SIZE,
+        MILESTONE_FONT_SIZE: zoomConfig.MILESTONE_FONT_SIZE,
+        PROJECT_SCALE: zoomConfig.PROJECT_SCALE,
         ZOOM_LEVEL: zoomLevel
     };
 };
@@ -232,6 +244,19 @@ const RegionRoadMap = () => {
         setResponsiveConstants(getResponsiveConstants(zoomLevel));
     }, [zoomLevel]);
 
+    // Apply project scaling based on zoom level
+    const getScaledFilteredData = () => {
+        const projectScale = responsiveConstants.PROJECT_SCALE;
+        if (projectScale >= 1.0) {
+            // Zooming out - show more projects (no change needed, show all)
+            return timelineFilteredData;
+        } else {
+            // Zooming in - show fewer projects
+            const targetCount = Math.max(1, Math.round(timelineFilteredData.length * projectScale));
+            return timelineFilteredData.slice(0, targetCount);
+        }
+    };
+
     const rowHeight = 60;
 
     // Check if a project has any overlap with the timeline range
@@ -374,106 +399,109 @@ const RegionRoadMap = () => {
             <div className="mb-6">
                 <h1 className="text-2xl font-bold text-gray-800 mb-4">Region Roadmap</h1>
 
-                {/* Filters */}
-                <div className="grid grid-cols-4 gap-4 mb-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-                        <select
-                            value={filters.region}
-                            onChange={(e) => handleFilterChange('region', e.target.value)}
-                            className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
-                        >
-                            <option value="All">All Regions</option>
-                            {filterOptions.regions.map(region => (
-                                <option key={region} value={region}>{region}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Market</label>
-                        <select
-                            value={filters.market}
-                            onChange={(e) => handleFilterChange('market', e.target.value)}
-                            className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
-                        >
-                            <option value="All">All Markets</option>
-                            {availableMarkets.map(market => (
-                                <option key={market} value={market}>{market}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
-                        <select
-                            value={filters.function}
-                            onChange={(e) => handleFilterChange('function', e.target.value)}
-                            className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
-                        >
-                            <option value="All">All Functions</option>
-                            {filterOptions.functions.map(func => (
-                                <option key={func} value={func}>{func}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tier</label>
-                        <select
-                            value={filters.tier}
-                            onChange={(e) => handleFilterChange('tier', e.target.value)}
-                            className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
-                        >
-                            <option value="All">All Tiers</option>
-                            {filterOptions.tiers.map(tier => (
-                                <option key={tier} value={tier}>Tier {tier}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Milestone Legend */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Milestone Legend</h3>
-                    <div className="flex flex-wrap gap-4 sm:gap-6">
-                        {/* Incomplete Milestone */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="white"
-                                    stroke="#3B82F6"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Incomplete</span>
+                {/* Filters and Legend */}
+                <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-4">
+                    {/* Filters */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+                            <select
+                                value={filters.region}
+                                onChange={(e) => handleFilterChange('region', e.target.value)}
+                                className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
+                            >
+                                <option value="All">All Regions</option>
+                                {filterOptions.regions.map(region => (
+                                    <option key={region} value={region}>{region}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        {/* Complete Milestone */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="#3B82F6"
-                                    stroke="#3B82F6"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Complete</span>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Market</label>
+                            <select
+                                value={filters.market}
+                                onChange={(e) => handleFilterChange('market', e.target.value)}
+                                className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
+                            >
+                                <option value="All">All Markets</option>
+                                {availableMarkets.map(market => (
+                                    <option key={market} value={market}>{market}</option>
+                                ))}
+                            </select>
                         </div>
 
-                        {/* Stacked Milestones */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="#1F2937"
-                                    stroke="white"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Multiple Milestones</span>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Function</label>
+                            <select
+                                value={filters.function}
+                                onChange={(e) => handleFilterChange('function', e.target.value)}
+                                className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
+                            >
+                                <option value="All">All Functions</option>
+                                {filterOptions.functions.map(func => (
+                                    <option key={func} value={func}>{func}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tier</label>
+                            <select
+                                value={filters.tier}
+                                onChange={(e) => handleFilterChange('tier', e.target.value)}
+                                className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
+                            >
+                                <option value="All">All Tiers</option>
+                                {filterOptions.tiers.map(tier => (
+                                    <option key={tier} value={tier}>Tier {tier}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Milestone Legend - Beside Filters */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 xl:min-w-max">
+                        <span className="text-sm font-medium text-gray-700">Milestone Legend:</span>
+                        <div className="flex flex-wrap gap-3 sm:gap-4">
+                            {/* Incomplete Milestone */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="white"
+                                        stroke="#3B82F6"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Incomplete</span>
+                            </div>
+
+                            {/* Complete Milestone */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="#3B82F6"
+                                        stroke="#3B82F6"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Complete</span>
+                            </div>
+
+                            {/* Stacked Milestones */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="#1F2937"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Multiple</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -595,8 +623,8 @@ const RegionRoadMap = () => {
                             }}
                             onScroll={handleLeftPanelScroll}
                         >
-                            <div style={{ position: 'relative', height: timelineFilteredData.length * (rowHeight + 8) }}>
-                                {timelineFilteredData.map((project, index) => {
+                            <div style={{ position: 'relative', height: getScaledFilteredData().length * (rowHeight + 8) }}>
+                                {getScaledFilteredData().map((project, index) => {
                                     const yOffset = index * (rowHeight + 8);
                                     return (
                                         <div
@@ -638,10 +666,10 @@ const RegionRoadMap = () => {
                             <div className="relative" style={{ width: totalWidth }}>
                                 <svg
                                     width={totalWidth}
-                                    height={timelineFilteredData.length * (rowHeight + 8)}
-                                    style={{ height: timelineFilteredData.length * (rowHeight + 8) }}
+                                    height={getScaledFilteredData().length * (rowHeight + 8)}
+                                    style={{ height: getScaledFilteredData().length * (rowHeight + 8) }}
                                 >
-                                    {timelineFilteredData.map((project, index) => {
+                                    {getScaledFilteredData().map((project, index) => {
                                         const yOffset = index * (rowHeight + 8);
 
                                         const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH);
@@ -724,7 +752,7 @@ const RegionRoadMap = () => {
                                                         fullLabel={milestone.fullLabel}
                                                         showLabel={milestone.showLabel}
                                                         hasAdjacentMilestones={milestone.hasAdjacentMilestones}
-                                                        fontSize={responsiveConstants.FONT_SIZE}
+                                                        fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                         isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                                     />
                                                 ))}

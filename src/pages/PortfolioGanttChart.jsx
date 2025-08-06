@@ -14,7 +14,9 @@ const ZOOM_LEVELS = {
         LABEL_WIDTH: 100,
         BASE_BAR_HEIGHT: 6,
         TOUCH_TARGET_SIZE: 16,
-        MILESTONE_LABEL_HEIGHT: 10
+        MILESTONE_LABEL_HEIGHT: 10,
+        MILESTONE_FONT_SIZE: '8px',
+        PROJECT_SCALE: 1.5 // Show 50% more projects
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
@@ -23,7 +25,9 @@ const ZOOM_LEVELS = {
         LABEL_WIDTH: 140,
         BASE_BAR_HEIGHT: 8,
         TOUCH_TARGET_SIZE: 20,
-        MILESTONE_LABEL_HEIGHT: 14
+        MILESTONE_LABEL_HEIGHT: 14,
+        MILESTONE_FONT_SIZE: '9px',
+        PROJECT_SCALE: 1.25 // Show 25% more projects
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
@@ -32,7 +36,9 @@ const ZOOM_LEVELS = {
         LABEL_WIDTH: 220,
         BASE_BAR_HEIGHT: 10,
         TOUCH_TARGET_SIZE: 24,
-        MILESTONE_LABEL_HEIGHT: 20
+        MILESTONE_LABEL_HEIGHT: 20,
+        MILESTONE_FONT_SIZE: '10px', // Reduced from default
+        PROJECT_SCALE: 1.0 // Normal project count
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
@@ -41,7 +47,9 @@ const ZOOM_LEVELS = {
         LABEL_WIDTH: 275,
         BASE_BAR_HEIGHT: 12,
         TOUCH_TARGET_SIZE: 30,
-        MILESTONE_LABEL_HEIGHT: 24
+        MILESTONE_LABEL_HEIGHT: 24,
+        MILESTONE_FONT_SIZE: '12px',
+        PROJECT_SCALE: 0.8 // Show 20% fewer projects
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
@@ -50,7 +58,9 @@ const ZOOM_LEVELS = {
         LABEL_WIDTH: 330,
         BASE_BAR_HEIGHT: 14,
         TOUCH_TARGET_SIZE: 36,
-        MILESTONE_LABEL_HEIGHT: 28
+        MILESTONE_LABEL_HEIGHT: 28,
+        MILESTONE_FONT_SIZE: '14px',
+        PROJECT_SCALE: 0.6 // Show 40% fewer projects
     }
 };
 
@@ -75,6 +85,8 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
         VISIBLE_MONTHS: isMobile ? Math.max(6, Math.round(zoomConfig.VISIBLE_MONTHS * 0.6)) : zoomConfig.VISIBLE_MONTHS,
         TOUCH_TARGET_SIZE: Math.max(isMobile ? 44 : 16, Math.round(zoomConfig.TOUCH_TARGET_SIZE * mobileAdjustment)),
         FONT_SIZE: zoomConfig.FONT_SIZE,
+        MILESTONE_FONT_SIZE: zoomConfig.MILESTONE_FONT_SIZE,
+        PROJECT_SCALE: zoomConfig.PROJECT_SCALE,
         ZOOM_LEVEL: zoomLevel
     };
 };
@@ -315,6 +327,19 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         }
     };
 
+    // Apply project scaling based on zoom level
+    const getScaledFilteredData = () => {
+        const projectScale = responsiveConstants.PROJECT_SCALE;
+        if (projectScale >= 1.0) {
+            // Zooming out - show more projects (no change needed, show all)
+            return filteredData;
+        } else {
+            // Zooming in - show fewer projects
+            const targetCount = Math.max(1, Math.round(filteredData.length * projectScale));
+            return filteredData.slice(0, targetCount);
+        }
+    };
+
     const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
         if (!milestones?.length) return 0;
 
@@ -362,73 +387,77 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     };
 
     const getTotalHeight = () => {
-        return filteredData.reduce((total, project) => {
+        const scaledData = getScaledFilteredData();
+        return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
             return total + barHeight + 8;
         }, 40);
     };
 
     return (
-        <div className="w-full h-screen flex flex-col">
+        <div className="w-full flex flex-col">
             {/* Responsive Header */}
             <div className="flex-shrink-0 p-2 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
-                    <label className="font-medium text-sm sm:text-base">Select Portfolio:</label>
-                    <select
-                        value={selectedParent}
-                        onChange={handleParentChange}
-                        className="border border-gray-300 rounded px-2 py-1 sm:px-3 sm:py-1 bg-white text-sm sm:text-base"
-                        style={{ minHeight: responsiveConstants.TOUCH_TARGET_SIZE }}
-                    >
-                        {parentNames.map((name) => (
-                            <option key={name} value={name}>
-                                {name}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    {/* Portfolio Selector */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        <label className="font-medium text-sm sm:text-base">Select Portfolio:</label>
+                        <select
+                            value={selectedParent}
+                            onChange={handleParentChange}
+                            className="border border-gray-300 rounded px-2 py-1 sm:px-3 sm:py-1 bg-white text-sm sm:text-base"
+                            style={{ minHeight: responsiveConstants.TOUCH_TARGET_SIZE }}
+                        >
+                            {parentNames.map((name) => (
+                                <option key={name} value={name}>
+                                    {name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-                {/* Milestone Legend */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Milestone Legend</h3>
-                    <div className="flex flex-wrap gap-4 sm:gap-6">
-                        {/* Incomplete Milestone */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="white"
-                                    stroke="#3B82F6"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Incomplete</span>
-                        </div>
+                    {/* Milestone Legend - Beside Portfolio */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Milestone Legend:</span>
+                        <div className="flex flex-wrap gap-3 sm:gap-4">
+                            {/* Incomplete Milestone */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="white"
+                                        stroke="#3B82F6"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Incomplete</span>
+                            </div>
 
-                        {/* Complete Milestone */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="#3B82F6"
-                                    stroke="#3B82F6"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Complete</span>
-                        </div>
+                            {/* Complete Milestone */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="#3B82F6"
+                                        stroke="#3B82F6"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Complete</span>
+                            </div>
 
-                        {/* Stacked Milestones */}
-                        <div className="flex items-center gap-2">
-                            <svg width="14" height="14" viewBox="0 0 16 16">
-                                <path
-                                    d="M8 2 L14 8 L8 14 L2 8 Z"
-                                    fill="#1F2937"
-                                    stroke="white"
-                                    strokeWidth="2"
-                                />
-                            </svg>
-                            <span className="text-xs sm:text-sm text-gray-600">Multiple Milestones</span>
+                            {/* Stacked Milestones */}
+                            <div className="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 2 L14 8 L8 14 L2 8 Z"
+                                        fill="#1F2937"
+                                        stroke="white"
+                                        strokeWidth="2"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-600">Multiple</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -529,7 +558,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             </div>
 
             {/* Scrollable Content Area */}
-            <div className="relative flex w-full">
+            <div className="relative flex w-full" style={{ minHeight: Math.max(400, getTotalHeight()) }}>
                 {/* Sticky Portfolio Names - Synchronized Scrolling */}
                 <div
                     ref={leftPanelScrollRef}
@@ -544,8 +573,9 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     onScroll={handleLeftPanelScroll}
                 >
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
-                        {filteredData.map((project, index) => {
-                            const yOffset = filteredData
+                        {getScaledFilteredData().map((project, index) => {
+                            const scaledData = getScaledFilteredData();
+                            const yOffset = scaledData
                                 .slice(0, index)
                                 .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
                             return (
@@ -593,19 +623,19 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     }}
                     onScroll={handleGanttScroll}
                 >
-                    <div className="relative" style={{ width: totalWidth, minHeight: '100%' }}>
+                    <div className="relative" style={{ width: totalWidth }}>
                         <svg
                             width={totalWidth}
-                            height={Math.max(400, getTotalHeight())}
-                            className="block"
                             style={{
-                                minHeight: getTotalHeight(),
+                                height: Math.max(400, getTotalHeight()),
                                 touchAction: 'pan-x pan-y' // Enable smooth touch scrolling
                             }}
+                            className="block"
                         >
-                            {filteredData.map((project, index) => {
+                            {getScaledFilteredData().map((project, index) => {
                                 // Calculate cumulative Y offset including all previous projects' full heights
-                                const yOffset = filteredData
+                                const scaledData = getScaledFilteredData();
+                                const yOffset = scaledData
                                     .slice(0, index)
                                     .reduce((total, p) => total + calculateBarHeight(p) + 8, 10);
 
@@ -664,7 +694,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                                 fullLabel={milestone.fullLabel}
                                                 hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                 showLabel={milestone.showLabel}
-                                                fontSize={responsiveConstants.FONT_SIZE}
+                                                fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                 isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                             />
                                         ))}
