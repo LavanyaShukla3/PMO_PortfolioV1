@@ -14,11 +14,14 @@ const MilestoneMarker = ({
     hasAdjacentMilestones = false, // Whether there are milestones within threshold
     showLabel = true, // Display2: Control whether to show label
     fontSize = '14px', // Responsive font size
-    isMobile = false // Mobile flag for responsive behavior
+    isMobile = false, // Mobile flag for responsive behavior
+    zoomLevel = 1.0 // New prop for zoom-based scaling
 }) => {
-    // Responsive sizing
+    // Zoom-responsive sizing
+    const zoomScale = Math.max(0.5, Math.min(1.5, zoomLevel)); // Clamp zoom between 0.5 and 1.5
     const baseSize = isMobile ? 12 : 10;
-    const size = isSG3 ? (isMobile ? 16 : 14) : baseSize;
+    const zoomedBaseSize = Math.round(baseSize * zoomScale);
+    const size = isSG3 ? Math.round(zoomedBaseSize * 1.4) : zoomedBaseSize;
     const yOffset = isSG3 ? (isMobile ? -8 : -7) : (isMobile ? -6 : -5);
     const isComplete = complete === 'Completed';
 
@@ -65,7 +68,7 @@ const MilestoneMarker = ({
                     <text
                         key={index}
                         x={x + size / 2}
-                        y={y + size + (isMobile ? 18 : 14) + (index * lineHeight)} // Increased initial spacing
+                        y={y + size + (isMobile ? 18 : 14) + (index * lineHeight)} // Increased space below marker for grouped labels (match PortfolioGanttChart)
                         textAnchor="middle"
                         className="text-l fill-gray-600"
                         style={{
@@ -83,8 +86,8 @@ const MilestoneMarker = ({
                     <text
                         x={x + size / 2}
                         y={labelPosition === 'below'
-                            ? y + size + (isMobile ? 14 : 10)    // Increased spacing below
-                            : y - (isMobile ? 20 : 17)}          // Increased spacing above
+                            ? y + size + (isMobile ? 14 : 10)   // Increased space below marker (match PortfolioGanttChart BELOW_LABEL_OFFSET=20)
+                            : y - (isMobile ? 20 : 17)}         // Decreased space above marker (match PortfolioGanttChart ABOVE_LABEL_OFFSET=15)
                         textAnchor="middle"
                         className="text-l fill-gray-600"
                         style={{

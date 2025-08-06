@@ -12,45 +12,55 @@ const ZOOM_LEVELS = {
         VISIBLE_MONTHS: 24,
         FONT_SIZE: '8px',
         LABEL_WIDTH: 160,
+        BASE_BAR_HEIGHT: 4, // Reduced for more compact rows
         TOUCH_TARGET_SIZE: 16,
         MILESTONE_FONT_SIZE: '8px',
-        PROJECT_SCALE: 1.5 // Show 50% more projects
+        PROJECT_SCALE: 2.0, // Show significantly more projects
+        ROW_PADDING: 4 // Reduced padding between rows
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
         VISIBLE_MONTHS: 18,
         FONT_SIZE: '10px',
         LABEL_WIDTH: 220,
+        BASE_BAR_HEIGHT: 6, // Smaller bars for more projects
         TOUCH_TARGET_SIZE: 20,
         MILESTONE_FONT_SIZE: '9px',
-        PROJECT_SCALE: 1.25 // Show 25% more projects
+        PROJECT_SCALE: 1.5, // Show more projects
+        ROW_PADDING: 6
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
         VISIBLE_MONTHS: 13,
         FONT_SIZE: '14px',
         LABEL_WIDTH: 320,
+        BASE_BAR_HEIGHT: 10,
         TOUCH_TARGET_SIZE: 24,
         MILESTONE_FONT_SIZE: '10px', // Reduced from default
-        PROJECT_SCALE: 1.0 // Normal project count
+        PROJECT_SCALE: 1.0, // Normal project count
+        ROW_PADDING: 8 // Standard padding
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
         VISIBLE_MONTHS: 10,
         FONT_SIZE: '16px',
         LABEL_WIDTH: 400,
+        BASE_BAR_HEIGHT: 14, // Larger bars for fewer projects
         TOUCH_TARGET_SIZE: 30,
         MILESTONE_FONT_SIZE: '12px',
-        PROJECT_SCALE: 0.8 // Show 20% fewer projects
+        PROJECT_SCALE: 0.7, // Show fewer projects
+        ROW_PADDING: 12 // More padding for larger rows
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
         VISIBLE_MONTHS: 8,
         FONT_SIZE: '18px',
         LABEL_WIDTH: 480,
+        BASE_BAR_HEIGHT: 18, // Much larger bars
         TOUCH_TARGET_SIZE: 36,
         MILESTONE_FONT_SIZE: '14px',
-        PROJECT_SCALE: 0.6 // Show 40% fewer projects
+        PROJECT_SCALE: 0.5, // Show significantly fewer projects
+        ROW_PADDING: 16 // Maximum padding for largest rows
     }
 };
 
@@ -63,18 +73,20 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
     // Get base zoom configuration
     const zoomConfig = ZOOM_LEVELS[zoomLevel] || ZOOM_LEVELS[1.0];
 
-    // Apply mobile adjustments if needed
-    const mobileAdjustment = isMobile ? 0.7 : 1.0;
+    // Apply mobile adjustments if needed (match PortfolioGanttChart)
+    const mobileAdjustment = isMobile ? 0.8 : 1.0;
 
     return {
         MONTH_WIDTH: Math.round(zoomConfig.MONTH_WIDTH * mobileAdjustment),
         TOTAL_MONTHS: 73,
         LABEL_WIDTH: Math.round(zoomConfig.LABEL_WIDTH * mobileAdjustment),
+        BASE_BAR_HEIGHT: Math.round(zoomConfig.BASE_BAR_HEIGHT * mobileAdjustment),
         VISIBLE_MONTHS: isMobile ? Math.max(6, Math.round(zoomConfig.VISIBLE_MONTHS * 0.6)) : zoomConfig.VISIBLE_MONTHS,
         TOUCH_TARGET_SIZE: Math.max(isMobile ? 44 : 16, Math.round(zoomConfig.TOUCH_TARGET_SIZE * mobileAdjustment)),
         FONT_SIZE: zoomConfig.FONT_SIZE,
         MILESTONE_FONT_SIZE: zoomConfig.MILESTONE_FONT_SIZE,
         PROJECT_SCALE: zoomConfig.PROJECT_SCALE,
+        ROW_PADDING: Math.round(zoomConfig.ROW_PADDING * mobileAdjustment),
         ZOOM_LEVEL: zoomLevel
     };
 };
@@ -82,6 +94,12 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
 // Milestone constants (copied from PortfolioGanttChart)
 const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
 const MAX_LABEL_LENGTH = 5; // Maximum length before truncation
+
+// Milestone label spacing constants (match PortfolioGanttChart)
+const LINE_HEIGHT = 12;
+const LABEL_PADDING = 15; // Padding for labels
+const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels (decreased from default)
+const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels (increased from default)
 
 // Helper function for truncating labels (copied from PortfolioGanttChart)
 const truncateLabel = (label, hasAdjacentMilestones) => {
@@ -257,7 +275,17 @@ const RegionRoadMap = () => {
         }
     };
 
-    const rowHeight = 60;
+    const calculateRowHeight = (projectName = '') => {
+        // Responsive row height calculation
+        const baseHeight = responsiveConstants.BASE_BAR_HEIGHT || 10;
+        const textLines = Math.ceil(projectName.length / 30); // Approximate chars per line
+        const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
+        const basePadding = responsiveConstants.ROW_PADDING || 8;
+        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
+        return nameHeight + extraPadding;
+    };
+
+    const rowHeight = calculateRowHeight();
 
     // Check if a project has any overlap with the timeline range
     const isProjectWithinTimelineRange = (project) => {
@@ -615,7 +643,8 @@ const RegionRoadMap = () => {
                             ref={leftPanelScrollRef}
                             className="flex-shrink-0 bg-white border-r border-gray-200 overflow-y-auto"
                             style={{
-                                width: responsiveConstants.LABEL_WIDTH,
+                                minWidth: responsiveConstants.LABEL_WIDTH,
+                                width: 'auto',
                                 position: 'sticky',
                                 left: 0,
                                 zIndex: 10,
@@ -623,16 +652,23 @@ const RegionRoadMap = () => {
                             }}
                             onScroll={handleLeftPanelScroll}
                         >
-                            <div style={{ position: 'relative', height: getScaledFilteredData().length * (rowHeight + 8) }}>
-                                {getScaledFilteredData().map((project, index) => {
-                                    const yOffset = index * (rowHeight + 8);
+                                                <div style={{ position: 'relative', height: getScaledFilteredData().reduce((total, project) => {
+                        const projectRowHeight = calculateRowHeight(project.name);
+                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                    }, 0) }}>
+                        {getScaledFilteredData().map((project, index) => {
+                            const projectRowHeight = calculateRowHeight(project.name);
+                            const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
+                                const pRowHeight = calculateRowHeight(p.name);
+                                return total + pRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                            }, 0);
                                     return (
                                         <div
                                             key={project.id}
                                             className="absolute flex flex-col justify-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
                                             style={{
                                                 top: yOffset,
-                                                height: rowHeight,
+                                                height: projectRowHeight,
                                                 paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
                                                 fontSize: responsiveConstants.FONT_SIZE,
                                                 width: '100%',
@@ -641,11 +677,11 @@ const RegionRoadMap = () => {
                                             }}
                                         >
                                             <div className="flex items-center justify-between w-full">
-                                                <div className="flex flex-col justify-center">
-                                                    <span className="font-medium text-gray-800 truncate pr-2" title={project.name}>
-                                                        {project.name}
-                                                    </span>
-                                                </div>
+                                                                                            <div className="flex flex-col justify-center">
+                                                <span className="font-medium text-gray-800 pr-2" title={project.name}>
+                                                    {project.name}
+                                                </span>
+                                            </div>
                                             </div>
                                         </div>
                                     );
@@ -666,11 +702,21 @@ const RegionRoadMap = () => {
                             <div className="relative" style={{ width: totalWidth }}>
                                 <svg
                                     width={totalWidth}
-                                    height={getScaledFilteredData().length * (rowHeight + 8)}
-                                    style={{ height: getScaledFilteredData().length * (rowHeight + 8) }}
+                                    height={getScaledFilteredData().reduce((total, project) => {
+                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                    }, 0)}
+                                    style={{ height: getScaledFilteredData().reduce((total, project) => {
+                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                    }, 0) }}
                                 >
                                     {getScaledFilteredData().map((project, index) => {
-                                        const yOffset = index * (rowHeight + 8);
+                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
+                                            const pRowHeight = calculateRowHeight(p.name);
+                                            return total + pRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                        }, 0);
 
                                         const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH);
 
@@ -696,9 +742,9 @@ const RegionRoadMap = () => {
                                                         return (
                                                             <rect
                                                                 x={startX}
-                                                                y={yOffset + (rowHeight - 24) / 2}
+                                                                y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                                                 width={width}
-                                                                height={24}
+                                                                height={responsiveConstants.TOUCH_TARGET_SIZE}
                                                                 rx={4}
                                                                 fill="#9ca3af"
                                                                 className="transition-opacity duration-150 hover:opacity-90"
@@ -725,9 +771,9 @@ const RegionRoadMap = () => {
                                                             <rect
                                                                 key={`${project.id}-${phase.name}`}
                                                                 x={startX}
-                                                                y={yOffset + (rowHeight - 24) / 2}
+                                                                y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                                                 width={width}
-                                                                height={24}
+                                                                height={responsiveConstants.TOUCH_TARGET_SIZE}
                                                                 rx={4}
                                                                 fill={phaseColors[phase.name] || '#9ca3af'}
                                                                 className="transition-opacity duration-150 hover:opacity-90"
@@ -741,7 +787,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={yOffset + (rowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
+                                                        y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
                                                         complete={milestone.status}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
@@ -754,6 +800,7 @@ const RegionRoadMap = () => {
                                                         hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                         fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                         isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
+                                                        zoomLevel={responsiveConstants.ZOOM_LEVEL}
                                                     />
                                                 ))}
                                             </g>

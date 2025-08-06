@@ -14,22 +14,24 @@ const ZOOM_LEVELS = {
         VISIBLE_MONTHS: 24,
         FONT_SIZE: '8px',
         LABEL_WIDTH: 100,
-        BASE_BAR_HEIGHT: 8,
+        BASE_BAR_HEIGHT: 4, // Reduced for more compact rows
         TOUCH_TARGET_SIZE: 16,
         MILESTONE_LABEL_HEIGHT: 6,
         MILESTONE_FONT_SIZE: '8px',
-        PROJECT_SCALE: 1.5 // Show 50% more projects
+        PROJECT_SCALE: 2.0, // Show significantly more projects
+        ROW_PADDING: 4 // Reduced padding between rows
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
         VISIBLE_MONTHS: 18,
         FONT_SIZE: '10px',
         LABEL_WIDTH: 140,
-        BASE_BAR_HEIGHT: 12,
+        BASE_BAR_HEIGHT: 6, // Smaller bars for more projects
         TOUCH_TARGET_SIZE: 20,
         MILESTONE_LABEL_HEIGHT: 9,
         MILESTONE_FONT_SIZE: '9px',
-        PROJECT_SCALE: 1.25 // Show 25% more projects
+        PROJECT_SCALE: 1.5, // Show more projects
+        ROW_PADDING: 6
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
@@ -40,7 +42,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 24,
         MILESTONE_LABEL_HEIGHT: 12,
         MILESTONE_FONT_SIZE: '10px', // Reduced from default
-        PROJECT_SCALE: 1.0 // Normal project count
+        PROJECT_SCALE: 1.0, // Normal project count
+        ROW_PADDING: 8 // Standard padding
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
@@ -51,7 +54,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 30,
         MILESTONE_LABEL_HEIGHT: 15,
         MILESTONE_FONT_SIZE: '12px',
-        PROJECT_SCALE: 0.8 // Show 20% fewer projects
+        PROJECT_SCALE: 0.7, // Show fewer projects
+        ROW_PADDING: 12 // More padding for larger rows
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
@@ -62,7 +66,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 36,
         MILESTONE_LABEL_HEIGHT: 18,
         MILESTONE_FONT_SIZE: '14px',
-        PROJECT_SCALE: 0.6 // Show 40% fewer projects
+        PROJECT_SCALE: 0.5, // Show significantly fewer projects
+        ROW_PADDING: 16 // Maximum padding for largest rows
     }
 };
 
@@ -89,6 +94,7 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
         FONT_SIZE: zoomConfig.FONT_SIZE,
         MILESTONE_FONT_SIZE: zoomConfig.MILESTONE_FONT_SIZE,
         PROJECT_SCALE: zoomConfig.PROJECT_SCALE,
+        ROW_PADDING: Math.round(zoomConfig.ROW_PADDING * mobileAdjustment),
         ZOOM_LEVEL: zoomLevel
     };
 };
@@ -348,28 +354,30 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
     const calculateBarHeight = (project) => {
         // Calculate height needed for project name wrapping (responsive)
-        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Responsive chars per line
+        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Approximate chars per line
         const textLines = Math.ceil(project.name.length / maxCharsPerLine);
-        const nameHeight = responsiveConstants.BASE_BAR_HEIGHT + ((textLines - 1) * 10);
+        const nameHeight = responsiveConstants.BASE_BAR_HEIGHT + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
 
-        // Calculate height needed for milestone labels
+        // Calculate height needed for milestone labels (responsive)
         const milestones = getMilestones(project.id);
         const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
 
         // Add extra height for sub-program rows to make them pop
         const extraHeight = project.isSubProgram ? 10 : 0;
 
-        // Return total height needed: name height + milestone label height + padding + extra height (responsive)
-        const padding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 12 : 8;
-        return nameHeight + milestoneLabelHeight + padding + extraHeight;
+        // Return total height needed: name height + milestone label height + responsive padding
+        const basePadding = responsiveConstants.ROW_PADDING || 8;
+        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
+        return nameHeight + milestoneLabelHeight + extraPadding + extraHeight;
     };
 
     const getTotalHeight = () => {
         const scaledData = getScaledFilteredData();
+        const rowSpacing = responsiveConstants.ROW_PADDING || 8;
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 4; // Reduced from 8
-        }, 20); // Reduced from 40
+            return total + barHeight + rowSpacing;
+        }, Math.round(40 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Responsive top margin
     };
 
     const truncateLabel = (label, hasAdjacentMilestones) => {
@@ -657,9 +665,10 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                 {/* Sticky Sub-Program Names - Synchronized Scrolling */}
                 <div
                     ref={leftPanelScrollRef}
-                    className="overflow-y-auto"
+                    className="overflow-y-auto overflow-x-auto"
                     style={{
-                        width: responsiveConstants.LABEL_WIDTH,
+                        minWidth: responsiveConstants.LABEL_WIDTH,
+                        width: 'auto',
                         position: 'sticky',
                         left: 0,
                         zIndex: 10,
@@ -686,7 +695,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                         display: 'flex',
                                         alignItems: 'center',
                                         paddingLeft: project.isChild ? '20px' : '6px', // Reduced padding
-                                        fontSize: '12px', // Reduced from 14px
+                                        fontSize: responsiveConstants.FONT_SIZE,
                                         borderBottom: '1px solid #f3f4f6',
                                         width: '100%',
                                         background: project.isSubProgram ? '#f0f9ff' : 'rgba(0, 0, 0, 0.015)',
@@ -698,7 +707,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
-                                        <span>{project.name}</span>
+                                        <div className="flex flex-col justify-center">
+                                            <span className="font-medium text-gray-800 pr-2" title={project.name}>
+                                                {project.name}
+                                            </span>
+                                        </div>
                                         {project.isChild && (
                                             <span className="text-xs text-gray-500 ml-2"></span>
                                         )}
@@ -788,9 +801,9 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                     <rect
                                                         key={`unphased-bar-${project.id}`}
                                                         x={startX}
-                                                        y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                        y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                                         width={Math.max(width, 2)}
-                                                        height={project.isSubProgram ? 18 : 14}
+                                                        height={responsiveConstants.TOUCH_TARGET_SIZE}
                                                         rx={4}
                                                         fill={phaseColors.Unphased}
                                                         className="transition-opacity duration-150 hover:opacity-90"
@@ -809,9 +822,9 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                         <rect
                                                             key={`phased-bar-${project.id}-${taskIndex}`}
                                                             x={startX}
-                                                            y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                            y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                                             width={Math.max(width, 2)}
-                                                            height={project.isSubProgram ? 18 : 14}
+                                                            height={responsiveConstants.TOUCH_TARGET_SIZE}
                                                             rx={4}
                                                             fill={phaseColors[task.TASK_NAME] || phaseColors.Unphased}
                                                             className="transition-opacity duration-150 hover:opacity-90"
@@ -826,9 +839,9 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                     <rect
                                                         key={`fallback-bar-${project.id}`}
                                                         x={calculatePosition(parseDate(project.startDate), startDate)}
-                                                        y={yOffset + (totalHeight - (project.isSubProgram ? 18 : 14)) / 2}
+                                                        y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
                                                         width={Math.max(calculatePosition(parseDate(project.endDate), startDate) - calculatePosition(parseDate(project.startDate), startDate), 2)}
-                                                        height={project.isSubProgram ? 18 : 14}
+                                                        height={responsiveConstants.TOUCH_TARGET_SIZE}
                                                         rx={4}
                                                         fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                                         className="transition-opacity duration-150 hover:opacity-90"
@@ -862,6 +875,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                                     hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                     fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                     isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
+                                                    zoomLevel={responsiveConstants.ZOOM_LEVEL}
                                                 />
                                             ));
                                         })()}

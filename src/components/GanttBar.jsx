@@ -74,7 +74,8 @@ const GanttBar = ({
     onBarClick,
     isMobile = false,
     fontSize = '14px',
-    touchTargetSize = 24
+    touchTargetSize = 24,
+    zoomLevel = 1.0
 }) => {
     const barColor = statusColors[status] || statusColors.Grey;
 
@@ -108,18 +109,15 @@ const GanttBar = ({
     return (
         <g className="gantt-bar">
             
-            {/* Main bar - responsive height */}
+            {/* Main bar - fully responsive height */}
             <rect
                 x={startX}
                 y={y + (calculateBarHeight(data) - touchTargetSize) / 2}
                 width={Math.max(width, 2)} // Minimum width of 2px
-                height={Math.min(touchTargetSize, isMobile ? 32 : 24)}
+                height={touchTargetSize}
                 rx={4}
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
-                style={{
-                    minHeight: touchTargetSize > 24 ? '32px' : '24px'
-                }}
                 onClick={() => onBarClick?.(data)}
             >
                 <title>{label}</title>
@@ -130,7 +128,7 @@ const GanttBar = ({
                 <MilestoneMarker
                     key={`${data.id}-milestone-${index}`}
                     x={milestone.x}
-                    y={y + (calculateBarHeight(data) - 24) / 2 + 12} // Center with the bar
+                    y={y + (calculateBarHeight(data) - touchTargetSize) / 2 + (touchTargetSize / 2)} // Center with the bar
                     complete={milestone.status}
                     label={milestone.label}
                     isSG3={milestone.isSG3}
@@ -140,6 +138,9 @@ const GanttBar = ({
                     groupLabels={milestone.groupLabels}
                     truncatedLabel={milestone.truncatedLabel}
                     hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                    fontSize={fontSize}
+                    isMobile={isMobile}
+                    zoomLevel={zoomLevel}
                 />
             ))}
         </g>

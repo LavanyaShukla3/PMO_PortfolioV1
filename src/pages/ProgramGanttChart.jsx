@@ -13,24 +13,26 @@ const ZOOM_LEVELS = {
         VISIBLE_MONTHS: 24,
         FONT_SIZE: '8px',
         LABEL_WIDTH: 100,
-        BASE_BAR_HEIGHT: 20,
-        PROGRAM_BAR_HEIGHT: 22,
+        BASE_BAR_HEIGHT: 4, // Reduced for more compact rows
+        PROGRAM_BAR_HEIGHT: 6,
         TOUCH_TARGET_SIZE: 16,
         MILESTONE_LABEL_HEIGHT: 10,
         MILESTONE_FONT_SIZE: '8px',
-        PROJECT_SCALE: 1.5 // Show 50% more projects
+        PROJECT_SCALE: 2.0, // Show significantly more projects
+        ROW_PADDING: 4 // Reduced padding between rows
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
         VISIBLE_MONTHS: 18,
         FONT_SIZE: '10px',
         LABEL_WIDTH: 140,
-        BASE_BAR_HEIGHT: 26,
-        PROGRAM_BAR_HEIGHT: 28,
+        BASE_BAR_HEIGHT: 6, // Smaller bars for more projects
+        PROGRAM_BAR_HEIGHT: 8,
         TOUCH_TARGET_SIZE: 20,
         MILESTONE_LABEL_HEIGHT: 14,
         MILESTONE_FONT_SIZE: '9px',
-        PROJECT_SCALE: 1.25 // Show 25% more projects
+        PROJECT_SCALE: 1.5, // Show more projects
+        ROW_PADDING: 6
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
@@ -42,7 +44,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 24,
         MILESTONE_LABEL_HEIGHT: 16,
         MILESTONE_FONT_SIZE: '10px', // Reduced from default
-        PROJECT_SCALE: 1.0 // Normal project count
+        PROJECT_SCALE: 1.0, // Normal project count
+        ROW_PADDING: 8 // Standard padding
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
@@ -54,7 +57,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 30,
         MILESTONE_LABEL_HEIGHT: 20,
         MILESTONE_FONT_SIZE: '12px',
-        PROJECT_SCALE: 0.8 // Show 20% fewer projects
+        PROJECT_SCALE: 0.7, // Show fewer projects
+        ROW_PADDING: 12 // More padding for larger rows
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
@@ -66,7 +70,8 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 36,
         MILESTONE_LABEL_HEIGHT: 24,
         MILESTONE_FONT_SIZE: '14px',
-        PROJECT_SCALE: 0.6 // Show 40% fewer projects
+        PROJECT_SCALE: 0.5, // Show significantly fewer projects
+        ROW_PADDING: 16 // Maximum padding for largest rows
     }
 };
 
@@ -94,6 +99,7 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
         FONT_SIZE: zoomConfig.FONT_SIZE,
         MILESTONE_FONT_SIZE: zoomConfig.MILESTONE_FONT_SIZE,
         PROJECT_SCALE: zoomConfig.PROJECT_SCALE,
+        ROW_PADDING: Math.round(zoomConfig.ROW_PADDING * mobileAdjustment),
         ZOOM_LEVEL: zoomLevel
     };
 };
@@ -378,20 +384,24 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const calculateBarHeight = (project) => {
         const isProgram = project.isProgram;
         const baseHeight = isProgram ? responsiveConstants.PROGRAM_BAR_HEIGHT : responsiveConstants.BASE_BAR_HEIGHT;
-        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Responsive chars per line
+        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Approximate chars per line
         const textLines = Math.ceil(project.name.length / maxCharsPerLine);
-        const nameHeight = baseHeight + ((textLines - 1) * 10);
+        const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
         const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
-        const padding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 12 : 8;
-        return nameHeight + milestoneLabelHeight + padding;
+        
+        // Return total height needed: name height + milestone label height + responsive padding
+        const basePadding = responsiveConstants.ROW_PADDING || 8;
+        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
+        return nameHeight + milestoneLabelHeight + extraPadding;
     };
 
     const getTotalHeight = () => {
         const scaledData = getScaledFilteredData();
+        const rowSpacing = responsiveConstants.ROW_PADDING || 8;
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + 4; // Reduced spacing between bars from 8 to 4
-        }, 20); // Reduced initial offset from 40 to 20
+            return total + barHeight + rowSpacing;
+        }, Math.round(40 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Responsive top margin
     };
 
     const isParentProgram = (project) => {
@@ -574,20 +584,21 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
             {/* Single Synchronized Scroll Container */}
             <div className="relative flex w-full">
                 {/* Sticky Program Names - Synchronized Scrolling */}
-                <div
-                    ref={leftPanelScrollRef}
-                    className="overflow-y-auto"
-                    style={{
-                        width: responsiveConstants.LABEL_WIDTH,
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 10,
-                        background: 'white',
-                        borderRight: '1px solid #e5e7eb',
-                        height: '100%',
-                    }}
-                    onScroll={handleLeftPanelScroll}
-                >
+                                                <div
+                                    ref={leftPanelScrollRef}
+                                    className="overflow-y-auto overflow-x-auto"
+                                    style={{
+                                        minWidth: responsiveConstants.LABEL_WIDTH,
+                                        width: 'auto',
+                                        position: 'sticky',
+                                        left: 0,
+                                        zIndex: 10,
+                                        background: 'white',
+                                        borderRight: '1px solid #e5e7eb',
+                                        height: '100%',
+                                    }}
+                                    onScroll={handleLeftPanelScroll}
+                                >
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {getScaledFilteredData().map((project, index) => {
                             const scaledData = getScaledFilteredData();
@@ -607,7 +618,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                         display: 'flex',
                                         alignItems: 'center',
                                         paddingLeft: '8px',
-                                        fontSize: '14px',
+                                        fontSize: responsiveConstants.FONT_SIZE,
                                         borderBottom: '1px solid #f3f4f6',
                                         width: '100%',
                                         background: isProgram ? '#f0f9ff' : 'transparent',
@@ -616,7 +627,13 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                         textTransform: isProgram ? 'uppercase' : 'none'
                                     }}
                                 >
-                                    {isProgram ? '📌 ' : ''}{project.name}
+                                    <div className="flex items-center justify-between w-full">
+                                        <div className="flex flex-col justify-center">
+                                            <span className="font-medium text-gray-800 pr-2" title={project.name}>
+                                                {isProgram ? '📌 ' : ''}{project.name}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             );
                         })}
@@ -656,9 +673,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                 const milestones = processMilestonesWithPosition(project.milestones, startDate);
 
                                 const isProgram = project.isProgram;
-                                const barHeight = isProgram ?
-                                    Math.min(responsiveConstants.TOUCH_TARGET_SIZE, 24) :
-                                    Math.min(responsiveConstants.TOUCH_TARGET_SIZE - 6, 18);
+                                const barHeight = responsiveConstants.TOUCH_TARGET_SIZE;
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
@@ -730,6 +745,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                                 hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                 fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                 isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
+                                                zoomLevel={responsiveConstants.ZOOM_LEVEL}
                                             />
                                         ))}
                                     </g>
