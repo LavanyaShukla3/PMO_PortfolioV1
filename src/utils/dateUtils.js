@@ -1,7 +1,7 @@
 import { parse, differenceInDays, addMonths, subMonths, startOfMonth, getMonth, getYear } from 'date-fns';
 
-// A/B Testing Configuration: Switch between 'horizontal' and 'vertical' milestone layouts
-export const MILESTONE_LAYOUT_TYPE = 'vertical'; // Change to 'horizontal' for comma-separated layout
+// Milestone Layout Configuration: Enforcing strict rules for milestone display
+export const MILESTONE_LAYOUT_TYPE = 'vertical'; // Strict rule: vertical stacking for multiple milestones per month
 
 // Constants for timeline configuration
 const MONTH_WIDTH = 100; // Width per month in pixels
@@ -146,7 +146,8 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
 };
 
 /**
- * Display3: Creates vertical stacked milestone labels for a month (A/B Testing Variation)
+ * STRICT RULE 2: Creates vertical stacked milestone labels for a month
+ * Each milestone label is truncated to fit within 2-month width to prevent overlap
  * @param {Array} monthMilestones - Array of milestones for a specific month
  * @param {number} maxWidth - Maximum width in pixels (2 months width)
  * @param {string} fontSize - Font size for width calculation
@@ -155,10 +156,11 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
 export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px') => {
     if (!monthMilestones?.length) return [];
 
-    // Create individual milestone labels in format "4th: Spain"
+    // STRICT RULE 2: Create individual milestone labels in format "4th: Spain"
+    // Each label is strictly truncated to 2-month width to prevent overlap
     return monthMilestones.map(milestone => {
         const label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
-        // Truncate each individual label if it exceeds max width
+        // STRICT TRUNCATION: Any milestone name longer than 2 month's width gets "…"
         return truncateTextToWidth(label, maxWidth, fontSize);
     });
 };
@@ -181,14 +183,18 @@ const getOrdinalSuffix = (day) => {
 };
 
 /**
- * Display3: Determines label position based on month index (odd = above, even = below)
+ * STRICT RULE 1: Determines label position based on month index
+ * Months 1/3/5/etc (odd) = above gantt bar
+ * Months 2/4/6/etc (even) = below gantt bar
+ * This ensures labels can be up to 2 month's wide before overlap issues occur
  * @param {string} monthKey - Month key in YYYY-MM format
  * @returns {string} 'above' or 'below'
  */
 export const getMonthlyLabelPosition = (monthKey) => {
     const [year, month] = monthKey.split('-').map(Number);
-    const monthIndex = month; // 1-based month number
-    return monthIndex % 2 === 1 ? 'above' : 'below'; // Odd months above, even months below
+    const monthIndex = month; // 1-based month number (1=Jan, 2=Feb, etc.)
+    // STRICT RULE 1: Odd months (1,3,5,7,9,11) above, Even months (2,4,6,8,10,12) below
+    return monthIndex % 2 === 1 ? 'above' : 'below';
 };
 
 /**

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createHorizontalMilestoneLabel, createVerticalMilestoneLabels, MILESTONE_LAYOUT_TYPE } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { processSubProgramData } from '../services/dataService';
 import subProgramData from '../services/SubProgramData.json';
 import investmentData from '../services/investmentData.json';
@@ -408,18 +408,20 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
             // Determine label position for this month (odd = above, even = below)
             const labelPosition = getMonthlyLabelPosition(monthKey);
 
-            // A/B Testing: Create labels based on layout type
-            const horizontalLabel = MILESTONE_LAYOUT_TYPE === 'horizontal'
-                ? createHorizontalMilestoneLabel(monthMilestones, twoMonthWidth, '14px')
-                : '';
-            const verticalLabels = MILESTONE_LAYOUT_TYPE === 'vertical'
-                ? createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px')
-                : [];
+            // STRICT RULES: Only vertical stacking allowed, no horizontal layout
+            // RULE 1: One milestone label per month with alternating positions
+            // RULE 2: Multiple milestones stacked vertically with 2-month width limit
+            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px');
+            const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {
                 const milestoneDate = parseDate(milestone.date);
                 const x = calculatePosition(milestoneDate, startDate, monthWidth);
+
+                // STRICT RULE FIX: Only the first milestone in each month shows the labels
+                // This prevents duplicate label rendering for multiple milestones in same month
+                const isFirstInMonth = index === 0;
 
                 processedMilestones.push({
                     ...milestone,
@@ -429,8 +431,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                     isMonthlyGrouped: true, // New flag for Display3
                     monthKey,
                     labelPosition,
-                    horizontalLabel, // Single horizontal label for the month
-                    verticalLabels, // Array of vertical labels for the month
+                    horizontalLabel: isFirstInMonth ? horizontalLabel : '', // Only first milestone shows horizontal label
+                    verticalLabels: isFirstInMonth ? verticalLabels : [], // Only first milestone shows vertical labels
                     showLabel: true, // Display3: Always show labels
                     shouldWrapText: false,
                     hasAdjacentMilestones: false, // Not used in Display3
@@ -697,6 +699,36 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                             width={totalWidth}
                             style={{ height: Math.max(400, getTotalHeight()) }}
                         >
+                            {/* Task 2: Responsive Vertical Swimlanes */}
+                            <defs>
+                                <pattern
+                                    id="swimlane-pattern-subprogram"
+                                    patternUnits="userSpaceOnUse"
+                                    width={responsiveConstants.MONTH_WIDTH * 2}
+                                    height="100%"
+                                >
+                                    <rect
+                                        width={responsiveConstants.MONTH_WIDTH}
+                                        height="100%"
+                                        fill="rgba(0,0,0,0.02)"
+                                    />
+                                    <rect
+                                        x={responsiveConstants.MONTH_WIDTH}
+                                        width={responsiveConstants.MONTH_WIDTH}
+                                        height="100%"
+                                        fill="rgba(0,0,0,0.05)"
+                                    />
+                                </pattern>
+                            </defs>
+
+                            {/* Vertical Swimlane Background - Responsive to zoom */}
+                            <rect
+                                x="0"
+                                y="0"
+                                width={totalWidth}
+                                height={Math.max(400, getTotalHeight())}
+                                fill="url(#swimlane-pattern-subprogram)"
+                            />
                             {getScaledFilteredData().map((project, index) => {
                                 const scaledData = getScaledFilteredData();
                                 const yOffset = scaledData
