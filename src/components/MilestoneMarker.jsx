@@ -15,7 +15,13 @@ const MilestoneMarker = ({
     showLabel = true, // Display2: Control whether to show label
     fontSize = '14px', // Responsive font size
     isMobile = false, // Mobile flag for responsive behavior
-    zoomLevel = 1.0 // New prop for zoom-based scaling
+    zoomLevel = 1.0, // New prop for zoom-based scaling
+    // Display3: New props for monthly grouped labels
+    isMonthlyGrouped = false, // Whether this uses Display3 monthly grouping
+    monthlyLabels = [], // Array of monthly label lines (legacy - for backward compatibility)
+    horizontalLabel = '', // Single horizontal comma-separated label for Display3
+    verticalLabels = [], // Array of vertical labels for Display3 A/B testing
+    monthKey = '' // Month key for this milestone
 }) => {
     // Zoom-responsive sizing
     const zoomScale = Math.max(0.5, Math.min(1.5, zoomLevel)); // Clamp zoom between 0.5 and 1.5
@@ -61,43 +67,89 @@ const MilestoneMarker = ({
                 className="cursor-pointer transition-colors duration-150"
             />
 
-            {/* Label rendering based on type - Display2: Only show labels for next upcoming milestone */}
-            {showLabel && (isGrouped ? (
-                // Stacked milestone labels with commas - Display2: Only if showLabel is true
-                groupLabels.map((label, index) => (
-                    <text
-                        key={index}
-                        x={x + size / 2}
-                        y={y + size + (isMobile ? 18 : 14) + (index * lineHeight)} // Increased space below marker for grouped labels (match PortfolioGanttChart)
-                        textAnchor="middle"
-                        className="text-l fill-gray-600"
-                        style={{
-                            fontSize: fontSize,
-                            fontFamily: 'system-ui, -apple-system, sans-serif',
-                            whiteSpace: 'nowrap'
-                        }}
-                    >
-                        {label + (index < groupLabels.length - 1 ? ',' : '')}
-                    </text>
-                ))
+            {/* Label rendering - Display3: Monthly grouped labels or Display2: Legacy logic */}
+            {showLabel && (isMonthlyGrouped ? (
+                // Display3: A/B Testing - Horizontal vs Vertical layouts
+                <>
+                    {/* Horizontal Layout: Single comma-separated label */}
+                    {horizontalLabel && (
+                        <text
+                            key={`${monthKey}-horizontal`}
+                            x={x + size / 2}
+                            y={labelPosition === 'below'
+                                ? y + size + (isMobile ? 18 : 14) // Below marker
+                                : y - (isMobile ? 25 : 20)} // Above marker
+                            textAnchor="middle"
+                            className="text-l fill-gray-600"
+                            style={{
+                                fontSize: fontSize,
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {horizontalLabel}
+                        </text>
+                    )}
+
+                    {/* Vertical Layout: Stacked individual labels */}
+                    {verticalLabels.map((labelLine, index) => (
+                        <text
+                            key={`${monthKey}-vertical-${index}`}
+                            x={x + size / 2}
+                            y={labelPosition === 'below'
+                                ? y + size + (isMobile ? 18 : 14) + (index * lineHeight) // Below marker, stacked down
+                                : y - (isMobile ? 25 : 20) - ((verticalLabels.length - 1 - index) * lineHeight)} // Above marker, stacked up
+                            textAnchor="middle"
+                            className="text-l fill-gray-600"
+                            style={{
+                                fontSize: fontSize,
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {labelLine}
+                        </text>
+                    ))}
+                </>
             ) : (
-                // Individual milestone label - Display2: Only show if showLabel is true
-                fullLabel && (
-                    <text
-                        x={x + size / 2}
-                        y={labelPosition === 'below'
-                            ? y + size + (isMobile ? 14 : 10)   // Increased space below marker (match PortfolioGanttChart BELOW_LABEL_OFFSET=20)
-                            : y - (isMobile ? 20 : 17)}         // Decreased space above marker (match PortfolioGanttChart ABOVE_LABEL_OFFSET=15)
-                        textAnchor="middle"
-                        className="text-l fill-gray-600"
-                        style={{
-                            fontSize: fontSize,
-                            fontFamily: 'system-ui, -apple-system, sans-serif',
-                            whiteSpace: 'nowrap'
-                        }}
-                    >
-                        {fullLabel}
-                    </text>
+                // Display2: Legacy logic for backward compatibility
+                isGrouped ? (
+                    // Stacked milestone labels with commas - Display2: Only if showLabel is true
+                    groupLabels.map((label, index) => (
+                        <text
+                            key={index}
+                            x={x + size / 2}
+                            y={y + size + (isMobile ? 18 : 14) + (index * lineHeight)} // Increased space below marker for grouped labels (match PortfolioGanttChart)
+                            textAnchor="middle"
+                            className="text-l fill-gray-600"
+                            style={{
+                                fontSize: fontSize,
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {label + (index < groupLabels.length - 1 ? ',' : '')}
+                        </text>
+                    ))
+                ) : (
+                    // Individual milestone label - Display2: Only show if showLabel is true
+                    fullLabel && (
+                        <text
+                            x={x + size / 2}
+                            y={labelPosition === 'below'
+                                ? y + size + (isMobile ? 14 : 10)   // Increased space below marker (match PortfolioGanttChart BELOW_LABEL_OFFSET=20)
+                                : y - (isMobile ? 20 : 17)}         // Decreased space above marker (match PortfolioGanttChart ABOVE_LABEL_OFFSET=15)
+                            textAnchor="middle"
+                            className="text-l fill-gray-600"
+                            style={{
+                                fontSize: fontSize,
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            {fullLabel}
+                        </text>
+                    )
                 )
             ))}
         </g>

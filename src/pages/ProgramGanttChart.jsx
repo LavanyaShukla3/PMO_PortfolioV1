@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createHorizontalMilestoneLabel, createVerticalMilestoneLabels, MILESTONE_LAYOUT_TYPE } from '../utils/dateUtils';
 import { processProgramData } from '../services/dataService';
 import { differenceInDays } from 'date-fns';
 import programData from '../services/ProgramData.json';
@@ -115,98 +115,54 @@ const statusColors = {
     'Yellow': '#E5DE00'
 };
 
-// Reuse the same milestone processing logic from PortfolioGanttChart
+// Display3: Monthly grouped milestone processing logic
 const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
     if (!milestones?.length) return [];
 
-    const sortedMilestones = [...milestones].sort((a, b) => {
-        const dateA = parseDate(a.date);
-        const dateB = parseDate(b.date);
-        return dateA - dateB;
-    });
+    // Display3: Group milestones by month
+    const monthlyGroups = groupMilestonesByMonth(milestones);
+    const twoMonthWidth = monthWidth * 2; // Maximum width for label blocks
 
-    // Display2: Find the next upcoming milestone (by due date, ascending)
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-    const nextUpcomingMilestone = sortedMilestones.find(milestone => {
-        const milestoneDate = parseDate(milestone.date);
-        milestoneDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-        return milestoneDate >= currentDate;
-    }) || sortedMilestones[sortedMilestones.length - 1]; // Fallback to last milestone if all are past
+    const processedMilestones = [];
 
-    const milestonesWithX = [];
-    const sameDateGroups = new Map();
+    // Process each monthly group
+    Object.entries(monthlyGroups).forEach(([monthKey, monthMilestones]) => {
+        // Determine label position for this month (odd = above, even = below)
+        const labelPosition = getMonthlyLabelPosition(monthKey);
 
-    sortedMilestones.forEach(milestone => {
-        const milestoneDate = parseDate(milestone.date);
-        const x = calculatePosition(milestoneDate, startDate, monthWidth);
-        const dateStr = milestoneDate.toISOString();
-        
-        const milestoneWithX = { ...milestone, x, date: milestoneDate };
-        milestonesWithX.push(milestoneWithX);
+        // A/B Testing: Create labels based on layout type
+        const horizontalLabel = MILESTONE_LAYOUT_TYPE === 'horizontal'
+            ? createHorizontalMilestoneLabel(monthMilestones, twoMonthWidth, '14px')
+            : '';
+        const verticalLabels = MILESTONE_LAYOUT_TYPE === 'vertical'
+            ? createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px')
+            : [];
 
-        if (!sameDateGroups.has(dateStr)) {
-            sameDateGroups.set(dateStr, []);
-        }
-        sameDateGroups.get(dateStr).push(milestoneWithX);
-    });
+        // Process each milestone in the month
+        monthMilestones.forEach((milestone, index) => {
+            const milestoneDate = parseDate(milestone.date);
+            const x = calculatePosition(milestoneDate, startDate, monthWidth);
 
-    let lastPosition = 'below';
-    
-    return milestonesWithX.map((milestone, index) => {
-        const dateStr = milestone.date.toISOString();
-        const sameDateMilestones = sameDateGroups.get(dateStr);
-        const isPartOfGroup = sameDateMilestones.length > 1;
-
-        const prevMilestone = index > 0 ? milestonesWithX[index - 1] : null;
-        const nextMilestone = index < milestonesWithX.length - 1 ? milestonesWithX[index + 1] : null;
-        
-        const distToPrev = prevMilestone ? Math.abs(differenceInDays(milestone.date, prevMilestone.date)) : Infinity;
-        const distToNext = nextMilestone ? Math.abs(differenceInDays(milestone.date, nextMilestone.date)) : Infinity;
-        
-        const hasAdjacentMilestones = distToPrev <= DAYS_THRESHOLD || distToNext <= DAYS_THRESHOLD;
-
-        // Display2: Determine if this milestone should show a label
-        const milestoneDate = new Date(milestone.date);
-        milestoneDate.setHours(0, 0, 0, 0);
-        const nextUpcomingDate = parseDate(nextUpcomingMilestone.date);
-        nextUpcomingDate.setHours(0, 0, 0, 0);
-        const shouldShowLabel = milestoneDate.getTime() === nextUpcomingDate.getTime();
-
-        if (isPartOfGroup) {
-            // Display2: Only show labels if this group contains the next upcoming milestone
-            const groupLabels = shouldShowLabel
-                ? sameDateMilestones.map(m => m.label) // Show all labels in the upcoming group, no truncation
-                : []; // Empty array = no labels shown
-
-            return {
+            processedMilestones.push({
                 ...milestone,
-                isGrouped: true,
-                groupLabels,
-                labelPosition: 'below',
+                x,
+                date: milestoneDate,
+                isGrouped: monthMilestones.length > 1,
+                isMonthlyGrouped: true, // New flag for Display3
+                monthKey,
+                labelPosition,
+                horizontalLabel, // Single horizontal label for the month
+                verticalLabels, // Array of vertical labels for the month
+                showLabel: true, // Display3: Always show labels
                 shouldWrapText: false,
-                hasAdjacentMilestones,
-                showLabel: shouldShowLabel
-            };
-        }
-
-        let labelPosition = 'below';
-        if (prevMilestone && distToPrev <= DAYS_THRESHOLD) {
-            labelPosition = lastPosition === 'below' ? 'above' : 'below';
-        }
-
-        lastPosition = labelPosition;
-
-        return {
-            ...milestone,
-            isGrouped: false,
-            labelPosition,
-            shouldWrapText: false,
-            fullLabel: shouldShowLabel ? milestone.label : '', // Display2: Only show label for next upcoming
-            hasAdjacentMilestones,
-            showLabel: shouldShowLabel
-        };
+                hasAdjacentMilestones: false, // Not used in Display3
+                fullLabel: milestone.label // Keep original label for tooltips
+            });
+        });
     });
+
+    // Sort by date for consistent rendering order
+    return processedMilestones.sort((a, b) => a.date - b.date);
 };
 
 const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio }) => {
@@ -366,10 +322,20 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
         const BELOW_LABEL_OFFSET = 14; // Reduced from 20
 
         processedMilestones.forEach(milestone => {
-            if (milestone.isGrouped) {
+            if (milestone.isMonthlyGrouped) {
+                // Display3: Monthly grouped milestones (single horizontal line)
+                const horizontalLabelHeight = LINE_HEIGHT; // Single line for horizontal label
+                if (milestone.labelPosition === 'above') {
+                    maxAboveHeight = Math.max(maxAboveHeight, horizontalLabelHeight + ABOVE_LABEL_OFFSET);
+                } else {
+                    maxBelowHeight = Math.max(maxBelowHeight, horizontalLabelHeight + BELOW_LABEL_OFFSET);
+                }
+            } else if (milestone.isGrouped) {
+                // Display2: Legacy grouped milestones
                 const groupHeight = milestone.groupLabels.length * LINE_HEIGHT;
                 maxBelowHeight = Math.max(maxBelowHeight, groupHeight + LABEL_PADDING);
             } else {
+                // Display2: Legacy individual milestones
                 if (milestone.labelPosition === 'above') {
                     maxAboveHeight = Math.max(maxAboveHeight, ABOVE_LABEL_OFFSET);
                 } else {
@@ -746,6 +712,12 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                                 fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                 isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                                 zoomLevel={responsiveConstants.ZOOM_LEVEL}
+                                                // Display3: New props for monthly grouped labels
+                                                isMonthlyGrouped={milestone.isMonthlyGrouped}
+                                                monthlyLabels={milestone.monthlyLabels}
+                                                horizontalLabel={milestone.horizontalLabel}
+                                                verticalLabels={milestone.verticalLabels}
+                                                monthKey={milestone.monthKey}
                                             />
                                         ))}
                                     </g>

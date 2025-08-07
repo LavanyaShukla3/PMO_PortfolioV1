@@ -25,13 +25,14 @@ const processRoadmapData = (sourceData) => {
                 const milestones = investmentData
                     .filter(inv =>
                         inv.INV_EXT_ID === item.CHILD_ID &&
-                        inv.TASK_NAME?.toLowerCase().includes('sg3')
+                        (inv.ROADMAP_ELEMENT === "Milestones - Deployment" ||
+                         inv.ROADMAP_ELEMENT === "Milestones - Other")
                     )
                     .map(milestone => ({
                         date: milestone.TASK_START,
                         status: milestone.MILESTONE_STATUS,
-                        label: item.CHILD_NAME,
-                        isSG3: true
+                        label: milestone.TASK_NAME,
+                        isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3')
                     }));
 
                 return {

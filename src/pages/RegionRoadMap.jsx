@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { processRegionData, getRegionFilterOptions } from '../services/dataService';
-import { parseDate, calculatePosition, getTimelineRange } from '../utils/dateUtils';
+import { parseDate, calculatePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createHorizontalMilestoneLabel, createVerticalMilestoneLabels, MILESTONE_LAYOUT_TYPE } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
@@ -319,106 +319,54 @@ const RegionRoadMap = () => {
         return processedData.filter(project => isProjectWithinTimelineRange(project));
     }, [processedData, startDate, endDate]);
 
-    // Milestone processing function (copied from PortfolioGanttChart)
+    // Display3: Monthly grouped milestone processing function
     const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
         if (!milestones?.length) return [];
 
-        // Sort milestones by date
-        const sortedMilestones = [...milestones].sort((a, b) => {
-            const dateA = parseDate(a.date);
-            const dateB = parseDate(b.date);
-            return dateA - dateB;
-        });
+        // Display3: Group milestones by month
+        const monthlyGroups = groupMilestonesByMonth(milestones);
+        const twoMonthWidth = monthWidth * 2; // Maximum width for label blocks
 
-        // Display2: Find the next upcoming milestone (by due date, ascending)
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-        const nextUpcomingMilestone = sortedMilestones.find(milestone => {
-            const milestoneDate = parseDate(milestone.date);
-            milestoneDate.setHours(0, 0, 0, 0); // Set to start of day for comparison
-            return milestoneDate >= currentDate;
-        }) || sortedMilestones[sortedMilestones.length - 1]; // Fallback to last milestone if all are past
+        const processedMilestones = [];
 
-        // First pass: calculate x positions and group by date
-        const milestonesWithX = [];
-        const sameDateGroups = new Map(); // Map of date string to array of milestones
+        // Process each monthly group
+        Object.entries(monthlyGroups).forEach(([monthKey, monthMilestones]) => {
+            // Determine label position for this month (odd = above, even = below)
+            const labelPosition = getMonthlyLabelPosition(monthKey);
 
-        sortedMilestones.forEach(milestone => {
-            const milestoneDate = parseDate(milestone.date);
-            const x = calculatePosition(milestoneDate, startDate, responsiveConstants.MONTH_WIDTH);
-            const dateStr = milestoneDate.toISOString();
+            // A/B Testing: Create labels based on layout type
+            const horizontalLabel = MILESTONE_LAYOUT_TYPE === 'horizontal'
+                ? createHorizontalMilestoneLabel(monthMilestones, twoMonthWidth, '14px')
+                : '';
+            const verticalLabels = MILESTONE_LAYOUT_TYPE === 'vertical'
+                ? createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px')
+                : [];
 
-            const milestoneWithX = { ...milestone, x, date: milestoneDate };
-            milestonesWithX.push(milestoneWithX);
+            // Process each milestone in the month
+            monthMilestones.forEach((milestone, index) => {
+                const milestoneDate = parseDate(milestone.date);
+                const x = calculatePosition(milestoneDate, startDate, monthWidth);
 
-            // Group milestones by exact date
-            if (!sameDateGroups.has(dateStr)) {
-                sameDateGroups.set(dateStr, []);
-            }
-            sameDateGroups.get(dateStr).push(milestoneWithX);
-        });
-
-        // Second pass: process groups and determine positioning
-        let lastPosition = 'below';
-
-        return milestonesWithX.map((milestone, index) => {
-            const dateStr = milestone.date.toISOString();
-            const sameDateMilestones = sameDateGroups.get(dateStr);
-            const isPartOfGroup = sameDateMilestones.length > 1;
-
-            // Check for adjacent milestones (within 5 days)
-            const prevMilestone = index > 0 ? milestonesWithX[index - 1] : null;
-            const nextMilestone = index < milestonesWithX.length - 1 ? milestonesWithX[index + 1] : null;
-
-            const distToPrev = prevMilestone ? Math.abs(differenceInDays(milestone.date, prevMilestone.date)) : Infinity;
-            const distToNext = nextMilestone ? Math.abs(differenceInDays(milestone.date, nextMilestone.date)) : Infinity;
-
-            const hasAdjacentMilestones = distToPrev <= DAYS_THRESHOLD || distToNext <= DAYS_THRESHOLD;
-
-            // Display2: Determine if this milestone should show a label
-            const milestoneDate = new Date(milestone.date);
-            milestoneDate.setHours(0, 0, 0, 0);
-            const nextUpcomingDate = parseDate(nextUpcomingMilestone.date);
-            nextUpcomingDate.setHours(0, 0, 0, 0);
-            const shouldShowLabel = milestoneDate.getTime() === nextUpcomingDate.getTime();
-
-            // Handle same-date groups
-            if (isPartOfGroup) {
-                // Display2: Only show labels if this group contains the next upcoming milestone
-                const groupLabels = shouldShowLabel
-                    ? sameDateMilestones.map(m => m.label) // Show all labels in the upcoming group, no truncation
-                    : []; // Empty array = no labels shown
-
-                return {
+                processedMilestones.push({
                     ...milestone,
-                    isGrouped: true,
-                    groupLabels,
-                    labelPosition: 'below',
+                    x,
+                    date: milestoneDate,
+                    isGrouped: monthMilestones.length > 1,
+                    isMonthlyGrouped: true, // New flag for Display3
+                    monthKey,
+                    labelPosition,
+                    horizontalLabel, // Single horizontal label for the month
+                    verticalLabels, // Array of vertical labels for the month
+                    showLabel: true, // Display3: Always show labels
                     shouldWrapText: false,
-                    hasAdjacentMilestones,
-                    showLabel: shouldShowLabel
-                };
-            }
-
-            // Handle individual milestones
-            // Determine label position based on proximity to previous milestone
-            let labelPosition = 'below';
-            if (prevMilestone && distToPrev <= DAYS_THRESHOLD) {
-                labelPosition = lastPosition === 'below' ? 'above' : 'below';
-            }
-
-            lastPosition = labelPosition;
-
-            return {
-                ...milestone,
-                isGrouped: false,
-                labelPosition,
-                shouldWrapText: false,
-                fullLabel: shouldShowLabel ? milestone.label : '', // Display2: Only show label for next upcoming
-                hasAdjacentMilestones,
-                showLabel: shouldShowLabel
-            };
+                    hasAdjacentMilestones: false, // Not used in Display3
+                    fullLabel: milestone.label // Keep original label for tooltips
+                });
+            });
         });
+
+        // Sort by date for consistent rendering order
+        return processedMilestones.sort((a, b) => a.date - b.date);
     };
 
     return (
@@ -801,6 +749,12 @@ const RegionRoadMap = () => {
                                                         fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
                                                         isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
                                                         zoomLevel={responsiveConstants.ZOOM_LEVEL}
+                                                        // Display3: New props for monthly grouped labels
+                                                        isMonthlyGrouped={milestone.isMonthlyGrouped}
+                                                        monthlyLabels={milestone.monthlyLabels}
+                                                        horizontalLabel={milestone.horizontalLabel}
+                                                        verticalLabels={milestone.verticalLabels}
+                                                        monthKey={milestone.monthKey}
                                                     />
                                                 ))}
                                             </g>
