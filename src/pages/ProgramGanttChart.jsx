@@ -167,7 +167,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
     return processedMilestones.sort((a, b) => a.date - b.date);
 };
 
-const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio }) => {
+const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio, onDrillToSubProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('');
@@ -592,7 +592,16 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                         background: isProgram ? '#f0f9ff' : 'transparent',
                                         outline: '1px solid rgba(0, 0, 0, 0.08)',
                                         fontWeight: isProgram ? 600 : 'normal',
-                                        textTransform: isProgram ? 'uppercase' : 'none'
+                                        textTransform: isProgram ? 'uppercase' : 'none',
+                                        cursor: project.isDrillable ? 'pointer' : 'default' // Task 1: Drill-through cursor
+                                    }}
+                                    onClick={() => {
+                                        // Task 1: Drill-through to SubProgram
+                                        if (project.isDrillable && onDrillToSubProgram) {
+                                            onDrillToSubProgram(project.id, project.name);
+                                        } else {
+                                            console.log('Program clicked:', project.id, 'isDrillable:', project.isDrillable);
+                                        }
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
@@ -601,6 +610,10 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                                 {isProgram ? '📌 ' : ''}{project.name}
                                             </span>
                                         </div>
+                                        {/* Task 1: Drill-through indicator */}
+                                        {project.isDrillable && (
+                                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">↗️</span>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -624,36 +637,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                             width={totalWidth}
                             style={{ height: Math.max(400, getTotalHeight()) }}
                         >
-                            {/* Task 2: Responsive Vertical Swimlanes */}
-                            <defs>
-                                <pattern
-                                    id="swimlane-pattern-program"
-                                    patternUnits="userSpaceOnUse"
-                                    width={responsiveConstants.MONTH_WIDTH * 2}
-                                    height="100%"
-                                >
-                                    <rect
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.02)"
-                                    />
-                                    <rect
-                                        x={responsiveConstants.MONTH_WIDTH}
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.05)"
-                                    />
-                                </pattern>
-                            </defs>
-
-                            {/* Vertical Swimlane Background - Responsive to zoom */}
-                            <rect
-                                x="0"
-                                y="0"
-                                width={totalWidth}
-                                height={Math.max(400, getTotalHeight())}
-                                fill="url(#swimlane-pattern-program)"
-                            />
+                            {/* iii. Removed swimlanes from ProgramGanttChart as requested */}
                             {getScaledFilteredData().map((project, index) => {
                                 const scaledData = getScaledFilteredData();
                                 const yOffset = scaledData
@@ -699,18 +683,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                             />
                                         )}
 
-                                        {/* Program label above bar - responsive */}
-                                        {isProgram && (
-                                            <text
-                                                x={startX + width / 2}
-                                                y={yOffset + (totalHeight - barHeight) / 2 - 5}
-                                                textAnchor="middle"
-                                                className="text-xs font-semibold tracking-wider fill-gray-600"
-                                                style={{ fontSize: responsiveConstants.FONT_SIZE === '12px' ? '9px' : '10px' }}
-                                            >
-                                                PROGRAM
-                                            </text>
-                                        )}
+                                        {/* ii. Removed 'PROGRAM' label from first row as requested */}
 
                                         {/* Render bar */}
                                         <rect
@@ -721,8 +694,17 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                             height={barHeight}
                                             rx={4}
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                            className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
-                                            onClick={() => console.log('Project clicked:', project.id)}
+                                            className={`transition-opacity duration-150 hover:opacity-90 ${
+                                                project.isDrillable ? 'cursor-pointer' : 'cursor-default'
+                                            }`}
+                                            onClick={() => {
+                                                // Task 1: Drill-through to SubProgram from Gantt bar
+                                                if (project.isDrillable && onDrillToSubProgram) {
+                                                    onDrillToSubProgram(project.id, project.name);
+                                                } else {
+                                                    console.log('Program bar clicked:', project.id, 'isDrillable:', project.isDrillable);
+                                                }
+                                            }}
                                         />
 
                                         {/* Render milestones */}

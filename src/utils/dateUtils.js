@@ -147,6 +147,7 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
 
 /**
  * STRICT RULE 2: Creates vertical stacked milestone labels for a month
+ * Task 2: Remove date prefix when there's only one milestone in the month
  * Each milestone label is truncated to fit within 2-month width to prevent overlap
  * @param {Array} monthMilestones - Array of milestones for a specific month
  * @param {number} maxWidth - Maximum width in pixels (2 months width)
@@ -156,10 +157,24 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
 export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px') => {
     if (!monthMilestones?.length) return [];
 
-    // STRICT RULE 2: Create individual milestone labels in format "4th: Spain"
-    // Each label is strictly truncated to 2-month width to prevent overlap
+    // Task 2: Remove date from milestone marker where there is just one milestone in the month
+    const isSingleMilestone = monthMilestones.length === 1;
+
     return monthMilestones.map(milestone => {
-        const label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
+        let label;
+        if (isSingleMilestone) {
+            // Task 2: Single milestone - no date prefix
+            // current: 31st: RGM 3.0/PFNA SG3
+            // expected: RGM 3.0/PFNA SG3
+            label = milestone.label;
+        } else {
+            // Multiple milestones - keep date prefix for stacking
+            // 4th: Spain
+            // 11th: Mexico
+            // 18th: Thailand
+            label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
+        }
+
         // STRICT TRUNCATION: Any milestone name longer than 2 month's width gets "…"
         return truncateTextToWidth(label, maxWidth, fontSize);
     });

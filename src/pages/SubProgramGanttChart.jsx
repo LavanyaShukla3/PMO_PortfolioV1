@@ -121,7 +121,7 @@ const statusColors = {
     'Yellow': '#E5DE00'
 };
 
-const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, onBackToProgram }) => {
+const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, onBackToProgram, selectedProgramName }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedSubProgram, setSelectedSubProgram] = useState('');
@@ -447,7 +447,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
 
     return (
         <div className="w-full">
-            {/* Breadcrumb Navigation */}
+            {/* Task 1: Breadcrumb Navigation - Same UI as Portfolio→Program drill-through */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                     {onBackToProgram && (
@@ -458,11 +458,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                             ← Back to Program
                         </button>
                     )}
-                    {selectedSubProgramName && (
+                    {selectedProgramName && (
                         <span className="text-gray-400">/</span>
                     )}
-                    {selectedSubProgramName && (
-                        <span className="font-medium">{selectedSubProgramName}</span>
+                    {selectedProgramName && (
+                        <span className="font-medium">{selectedProgramName}</span>
                     )}
                 </div>
             </div>
@@ -699,36 +699,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                             width={totalWidth}
                             style={{ height: Math.max(400, getTotalHeight()) }}
                         >
-                            {/* Task 2: Responsive Vertical Swimlanes */}
-                            <defs>
-                                <pattern
-                                    id="swimlane-pattern-subprogram"
-                                    patternUnits="userSpaceOnUse"
-                                    width={responsiveConstants.MONTH_WIDTH * 2}
-                                    height="100%"
-                                >
-                                    <rect
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.02)"
-                                    />
-                                    <rect
-                                        x={responsiveConstants.MONTH_WIDTH}
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.05)"
-                                    />
-                                </pattern>
-                            </defs>
-
-                            {/* Vertical Swimlane Background - Responsive to zoom */}
-                            <rect
-                                x="0"
-                                y="0"
-                                width={totalWidth}
-                                height={Math.max(400, getTotalHeight())}
-                                fill="url(#swimlane-pattern-subprogram)"
-                            />
+                            {/* iii. Removed swimlanes from SubProgramGanttChart as requested */}
                             {getScaledFilteredData().map((project, index) => {
                                 const scaledData = getScaledFilteredData();
                                 const yOffset = scaledData

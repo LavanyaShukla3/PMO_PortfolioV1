@@ -661,39 +661,22 @@ const RegionRoadMap = () => {
                                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
                                     }, 0) }}
                                 >
-                                    {/* Task 2: Responsive Vertical Swimlanes */}
-                                    <defs>
-                                        <pattern
-                                            id="swimlane-pattern-region"
-                                            patternUnits="userSpaceOnUse"
-                                            width={responsiveConstants.MONTH_WIDTH * 2}
-                                            height="100%"
-                                        >
-                                            <rect
-                                                width={responsiveConstants.MONTH_WIDTH}
-                                                height="100%"
-                                                fill="rgba(0,0,0,0.02)"
-                                            />
-                                            <rect
-                                                x={responsiveConstants.MONTH_WIDTH}
-                                                width={responsiveConstants.MONTH_WIDTH}
-                                                height="100%"
-                                                fill="rgba(0,0,0,0.05)"
-                                            />
-                                        </pattern>
-                                    </defs>
-
-                                    {/* Vertical Swimlane Background - Responsive to zoom */}
-                                    <rect
-                                        x="0"
-                                        y="0"
-                                        width={totalWidth}
-                                        height={getScaledFilteredData().reduce((total, project) => {
-                                            const projectRowHeight = calculateRowHeight(project.name);
-                                            return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                                        }, 0)}
-                                        fill="url(#swimlane-pattern-region)"
-                                    />
+                                    {/* iv. Simple line-based swimlanes for RegionGanttChart */}
+                                    {/* Vertical month separator lines - responsive to zoom */}
+                                    {Array.from({ length: Math.ceil(totalWidth / responsiveConstants.MONTH_WIDTH) }, (_, i) => (
+                                        <line
+                                            key={`month-line-${i}`}
+                                            x1={i * responsiveConstants.MONTH_WIDTH}
+                                            y1="0"
+                                            x2={i * responsiveConstants.MONTH_WIDTH}
+                                            y2={getScaledFilteredData().reduce((total, project) => {
+                                                const projectRowHeight = calculateRowHeight(project.name);
+                                                return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                            }, 0)}
+                                            stroke="rgba(0,0,0,0.1)"
+                                            strokeWidth="1"
+                                        />
+                                    ))}
                                     {getScaledFilteredData().map((project, index) => {
                                         const projectRowHeight = calculateRowHeight(project.name);
                                         const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {

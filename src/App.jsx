@@ -84,11 +84,18 @@ function App() {
                                 setSelectedProjectId(null);
                                 setSelectedProjectName('');
                             }}
+                            onDrillToSubProgram={(subProgramId, subProgramName) => {
+                                // Task 1: Drill-through from Program to SubProgram
+                                setSelectedSubProgramId(subProgramId);
+                                setSelectedSubProgramName(subProgramName);
+                                setCurrentView('SubProgram');
+                            }}
                         />
                     ) : currentView === 'SubProgram' ? (
                         <SubProgramGanttChart
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
+                            selectedProgramName={selectedProjectName} // Task 1: Pass program name for breadcrumb
                             onBackToProgram={() => {
                                 setCurrentView('Program');
                                 setSelectedSubProgramId(null);

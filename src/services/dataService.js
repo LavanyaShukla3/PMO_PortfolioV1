@@ -75,7 +75,74 @@ const processRoadmapData = (sourceData) => {
  * @returns {Array} Processed data ready for the Gantt chart
  */
 export const processPortfolioData = () => processRoadmapData(portfolioData);
-export const processProgramData = () => processRoadmapData(programData);
+/**
+ * Task 1: Processes program data with SubProgram drill-through capability
+ * @returns {Array} Processed program data with isDrillable flag for SubProgram navigation
+ */
+export const processProgramData = () => {
+    try {
+        return programData
+            .map(item => {
+                const investment = investmentData.find(inv =>
+                    inv.INV_EXT_ID === item.CHILD_ID &&
+                    inv.ROADMAP_ELEMENT === "Investment"
+                );
+
+                if (!investment) {
+                    console.log(`No investment record for CHILD_ID: ${item.CHILD_ID}`);
+                    return null;
+                }
+
+                const milestones = investmentData
+                    .filter(inv =>
+                        inv.INV_EXT_ID === item.CHILD_ID &&
+                        (inv.ROADMAP_ELEMENT === "Milestones - Deployment" ||
+                         inv.ROADMAP_ELEMENT === "Milestones - Other")
+                    )
+                    .map(milestone => ({
+                        date: milestone.TASK_START,
+                        status: milestone.MILESTONE_STATUS,
+                        label: milestone.TASK_NAME,
+                        isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3')
+                    }));
+
+                // Task 1: Check if this program has corresponding SubProgram records
+                // Program → Sub-Program: Take CHILD_ID(ProgramData) and match it with COE_ROADMAP_PARENT_ID(Sub-programData)
+                const hasSubPrograms = subProgramData.some(subItem =>
+                    subItem.COE_ROADMAP_PARENT_ID === item.CHILD_ID
+                );
+
+                return {
+                    id: item.CHILD_ID,
+                    name: investment.INVESTMENT_NAME || item.CHILD_NAME,
+                    parentId: item.COE_ROADMAP_PARENT_ID,
+                    parentName: item.COE_ROADMAP_PARENT_NAME,
+                    isProgram: item.COE_ROADMAP_PARENT_ID === item.CHILD_ID,
+                    isDrillable: hasSubPrograms, // Task 1: Enable drill-through if SubPrograms exist
+                    startDate: investment.TASK_START,
+                    endDate: investment.TASK_FINISH,
+                    status: investment.INV_OVERALL_STATUS,
+                    sortOrder: investment.SortOrder || 0,
+                    milestones
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => {
+                // First, sort by parent name to group programs together
+                if (a.parentName !== b.parentName) {
+                    return a.parentName.localeCompare(b.parentName);
+                }
+                // Within the same program, put the program itself first
+                if (a.isProgram && !b.isProgram) return -1;
+                if (!a.isProgram && b.isProgram) return 1;
+                // Then sort by sortOrder if available
+                return (a.sortOrder || 0) - (b.sortOrder || 0);
+            });
+    } catch (error) {
+        console.error('Error processing program data:', error);
+        return [];
+    }
+};
 
 /**
  * Processes sub-program data with investment data for Gantt chart
@@ -108,7 +175,7 @@ export const processSubProgramData = () => {
                             date: milestone.TASK_START,
                             status: milestone.MILESTONE_STATUS,
                             label: milestone.TASK_NAME,
-                            isSG3: false
+                            isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
                         }));
 
                     processedData.push({
@@ -141,7 +208,7 @@ export const processSubProgramData = () => {
                                 date: milestone.TASK_START,
                                 status: milestone.MILESTONE_STATUS,
                                 label: milestone.TASK_NAME,
-                                isSG3: false
+                                isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
                             }));
 
                         processedData.push({
@@ -277,7 +344,8 @@ export const processRegionData = (filters = {}) => {
                     date: milestone.TASK_START,
                     status: milestone.MILESTONE_STATUS || 'Pending',
                     label: milestone.TASK_NAME,
-                    type: milestone.ROADMAP_ELEMENT
+                    type: milestone.ROADMAP_ELEMENT,
+                    isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
                 }))
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
 

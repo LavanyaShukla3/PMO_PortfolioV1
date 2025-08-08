@@ -613,36 +613,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             }}
                             className="block"
                         >
-                            {/* Task 2: Responsive Vertical Swimlanes */}
-                            <defs>
-                                <pattern
-                                    id="swimlane-pattern"
-                                    patternUnits="userSpaceOnUse"
-                                    width={responsiveConstants.MONTH_WIDTH * 2}
-                                    height="100%"
-                                >
-                                    <rect
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.02)"
-                                    />
-                                    <rect
-                                        x={responsiveConstants.MONTH_WIDTH}
-                                        width={responsiveConstants.MONTH_WIDTH}
-                                        height="100%"
-                                        fill="rgba(0,0,0,0.05)"
-                                    />
-                                </pattern>
-                            </defs>
-
-                            {/* Vertical Swimlane Background - Responsive to zoom */}
-                            <rect
-                                x="0"
-                                y="0"
-                                width={totalWidth}
-                                height={Math.max(400, getTotalHeight())}
-                                fill="url(#swimlane-pattern)"
-                            />
+                            {/* iii. Removed swimlanes from PortfolioGanttChart as requested */}
                             {getScaledFilteredData().map((project, index) => {
                                 // Calculate cumulative Y offset including all previous projects' full heights
                                 const scaledData = getScaledFilteredData();
