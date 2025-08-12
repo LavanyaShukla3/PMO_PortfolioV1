@@ -732,22 +732,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
                                             />
                                         )}
                                         
-                                        {/* Label above the bar for sub-programs */}
-                                        {project.isSubProgram && (
-                                            <text
-                                                x={totalWidth / 2}
-                                                y={yOffset + 8}
-                                                textAnchor="middle"
-                                                style={{
-                                                    fontSize: '10px',
-                                                    fontWeight: '600',
-                                                    fill: '#1e40af',
-                                                    fontFamily: 'system-ui, -apple-system, sans-serif'
-                                                }}
-                                            >
-                                                SUB-PROGRAM
-                                            </text>
-                                        )}
+                                        {/* Removed 'SUB-PROGRAM' label from first row as requested */}
                                         
                                         {/* Render Gantt bars based on phase structure */}
                                         {(() => {
