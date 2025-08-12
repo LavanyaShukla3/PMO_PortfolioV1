@@ -295,16 +295,17 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         return { unphasedTasks, phasedTasks };
     };
 
-    // Get milestones for a sub-program
+    // Updated: Get SG3 milestones only for a sub-program
     const getMilestones = (subProgramId) => {
-        const milestones = investmentData.filter(inv => 
+        const milestones = investmentData.filter(inv =>
             inv.INV_EXT_ID === subProgramId &&
-            (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+            (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other") &&
+            inv.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
         ).map(milestone => ({
             date: milestone.TASK_START,
             status: milestone.MILESTONE_STATUS,
             label: milestone.TASK_NAME,
-            isSG3: false
+            isSG3: true // All filtered milestones are SG3
         }));
         return milestones;
     };
@@ -394,6 +395,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
         return label.substring(0, MAX_LABEL_LENGTH) + '...';
     };
 
+    // Updated: Now processes only SG3 milestones (filtered in dataService.js)
     const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
         if (!milestones?.length) return [];
 

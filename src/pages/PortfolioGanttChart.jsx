@@ -114,6 +114,7 @@ const truncateLabel = (label, hasAdjacentMilestones) => {
     return label.substring(0, MAX_LABEL_LENGTH) + '...';
 };
 
+// Updated: Now processes only SG3 milestones (filtered in dataService.js)
 const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
     if (!milestones?.length) return [];
 

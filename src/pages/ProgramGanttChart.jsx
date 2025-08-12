@@ -116,6 +116,7 @@ const statusColors = {
 };
 
 // Display3: Monthly grouped milestone processing logic
+// Updated: Now processes only SG3 milestones (filtered in dataService.js)
 const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
     if (!milestones?.length) return [];
 

@@ -22,17 +22,19 @@ const processRoadmapData = (sourceData) => {
                     return null;
                 }
 
+                // Updated milestone mapping logic: Filter for SG3 milestones only
                 const milestones = investmentData
                     .filter(inv =>
                         inv.INV_EXT_ID === item.CHILD_ID &&
                         (inv.ROADMAP_ELEMENT === "Milestones - Deployment" ||
-                         inv.ROADMAP_ELEMENT === "Milestones - Other")
+                         inv.ROADMAP_ELEMENT === "Milestones - Other") &&
+                        inv.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
                     )
                     .map(milestone => ({
                         date: milestone.TASK_START,
                         status: milestone.MILESTONE_STATUS,
                         label: milestone.TASK_NAME,
-                        isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3')
+                        isSG3: true // All filtered milestones are SG3
                     }));
 
                 return {
@@ -93,17 +95,19 @@ export const processProgramData = () => {
                     return null;
                 }
 
+                // Updated milestone mapping logic: Filter for SG3 milestones only
                 const milestones = investmentData
                     .filter(inv =>
                         inv.INV_EXT_ID === item.CHILD_ID &&
                         (inv.ROADMAP_ELEMENT === "Milestones - Deployment" ||
-                         inv.ROADMAP_ELEMENT === "Milestones - Other")
+                         inv.ROADMAP_ELEMENT === "Milestones - Other") &&
+                        inv.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
                     )
                     .map(milestone => ({
                         date: milestone.TASK_START,
                         status: milestone.MILESTONE_STATUS,
                         label: milestone.TASK_NAME,
-                        isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3')
+                        isSG3: true // All filtered milestones are SG3
                     }));
 
                 // Task 1: Check if this program has corresponding SubProgram records
@@ -166,16 +170,18 @@ export const processSubProgramData = () => {
                 const subProgramInvestment = investmentData.find(inv => inv.INV_EXT_ID === subProgramItem.CHILD_ID);
                 
                 if (subProgramInvestment) {
+                    // Updated milestone mapping logic: Filter for SG3 milestones only
                     const subProgramMilestones = investmentData
-                        .filter(inv => 
+                        .filter(inv =>
                             inv.INV_EXT_ID === subProgramItem.CHILD_ID &&
-                            (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+                            (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other") &&
+                            inv.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
                         )
                         .map(milestone => ({
                             date: milestone.TASK_START,
                             status: milestone.MILESTONE_STATUS,
                             label: milestone.TASK_NAME,
-                            isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
+                            isSG3: true // All filtered milestones are SG3
                         }));
 
                     processedData.push({
@@ -199,16 +205,18 @@ export const processSubProgramData = () => {
                     const childInvestment = investmentData.find(inv => inv.INV_EXT_ID === childItem.CHILD_ID);
                     
                     if (childInvestment) {
+                        // Updated milestone mapping logic: Filter for SG3 milestones only
                         const childMilestones = investmentData
-                            .filter(inv => 
+                            .filter(inv =>
                                 inv.INV_EXT_ID === childItem.CHILD_ID &&
-                                (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other")
+                                (inv.ROADMAP_ELEMENT === "Milestones - Deployment" || inv.ROADMAP_ELEMENT === "Milestones - Other") &&
+                                inv.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
                             )
                             .map(milestone => ({
                                 date: milestone.TASK_START,
                                 status: milestone.MILESTONE_STATUS,
                                 label: milestone.TASK_NAME,
-                                isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
+                                isSG3: true // All filtered milestones are SG3
                             }));
 
                         processedData.push({
@@ -333,19 +341,20 @@ export const processRegionData = (filters = {}) => {
                 }
             }
 
-            // Get milestones for this project
+            // Updated milestone mapping logic: Filter for SG3 milestones only
             const milestones = projectItems
                 .filter(item =>
                     (item.ROADMAP_ELEMENT === "Milestones - Other" ||
                      item.ROADMAP_ELEMENT === "Milestones - Deployment") &&
-                    item.TASK_START
+                    item.TASK_START &&
+                    item.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
                 )
                 .map(milestone => ({
                     date: milestone.TASK_START,
                     status: milestone.MILESTONE_STATUS || 'Pending',
                     label: milestone.TASK_NAME,
                     type: milestone.ROADMAP_ELEMENT,
-                    isSG3: milestone.TASK_NAME?.toLowerCase().includes('sg3') || false
+                    isSG3: true // All filtered milestones are SG3
                 }))
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
 

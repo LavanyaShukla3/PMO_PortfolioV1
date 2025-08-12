@@ -320,6 +320,7 @@ const RegionRoadMap = () => {
     }, [processedData, startDate, endDate]);
 
     // Display3: Monthly grouped milestone processing function
+    // Updated: Now processes only SG3 milestones (filtered in dataService.js)
     const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
         if (!milestones?.length) return [];
 
