@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
-import { processSubProgramData } from '../services/dataService';
-import subProgramData from '../services/SubProgramData.json';
-import investmentData from '../services/investmentData.json';
+import { processSubProgramData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -127,6 +125,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     const [selectedSubProgram, setSelectedSubProgram] = useState('');
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -135,11 +135,41 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     const { startDate } = getTimelineRange();
     const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+                    <span className="ml-4 text-lg text-gray-600">Loading sub-program data...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                    <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Sub-Program Data</h3>
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     // Get unique sub-program names (only the parent sub-programs)
-    const subProgramNames = Array.from(new Set(subProgramData
+    const subProgramNames = processedData.length > 0 ? Array.from(new Set(processedData
         .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
         .map(item => item.COE_ROADMAP_PARENT_NAME)
-    )).sort();
+    )).sort() : [];
 
     // Handle window resize for responsive behavior
     useEffect(() => {
@@ -152,13 +182,32 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, on
     }, []);
 
     useEffect(() => {
-        const data = processSubProgramData();
-        setProcessedData(data);
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const data = await processSubProgramData();
+                setProcessedData(data);
 
-        // Set default sub-program (first in the list)
-        if (subProgramNames.length > 0 && !selectedSubProgram) {
-            setSelectedSubProgram(subProgramNames[0]);
-        }
+                // Get unique sub-program names (only the parent sub-programs)
+                const subProgramNames = Array.from(new Set(data
+                    .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
+                    .map(item => item.COE_ROADMAP_PARENT_NAME)
+                )).sort();
+
+                // Set default sub-program (first in the list)
+                if (subProgramNames.length > 0 && !selectedSubProgram) {
+                    setSelectedSubProgram(subProgramNames[0]);
+                }
+            } catch (err) {
+                console.error('Failed to load sub-program data:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
     }, []);
 
     useEffect(() => {

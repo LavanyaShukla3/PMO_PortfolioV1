@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
-import { processPortfolioData } from '../services/dataService';
+import { processPortfolioData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -172,6 +172,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const [selectedParent, setSelectedParent] = useState('All');
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -216,32 +218,44 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         setZoomLevel(1.0);
     };
 
+    // Load data from API
     useEffect(() => {
-        const data = processPortfolioData();
-        setProcessedData(data);
-        setFilteredData(data);
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const data = await processPortfolioData();
+                setProcessedData(data);
+                setFilteredData(data);
 
-        // Initial scroll to show June 2025 to June 2026 (responsive months)
-        if (timelineScrollRef.current) {
-            // Calculate scroll position to show June 2025 (current month - 2)
-            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
-            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+                // Initial scroll to show June 2025 to June 2026 (responsive months)
+                setTimeout(() => {
+                    if (timelineScrollRef.current) {
+                        // Calculate scroll position to show June 2025 (current month - 2)
+                        const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
+                        const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
 
-            // Debug actual widths
-            console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
-            console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
-            console.log('🔍 Timeline container style width:', timelineScrollRef.current.style.width);
-            console.log('🔍 Expected width for visible months:', responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS, 'px');
-            console.log('🔍 Screen width:', window.innerWidth);
-            console.log('🔍 Responsive constants:', responsiveConstants);
+                        console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
+                        console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
+                        console.log('🔍 Responsive constants:', responsiveConstants);
 
-            timelineScrollRef.current.scrollLeft = scrollPosition;
-            // Sync gantt scroll position
-            if (ganttScrollRef.current) {
-                ganttScrollRef.current.scrollLeft = scrollPosition;
+                        timelineScrollRef.current.scrollLeft = scrollPosition;
+                        // Sync gantt scroll position
+                        if (ganttScrollRef.current) {
+                            ganttScrollRef.current.scrollLeft = scrollPosition;
+                        }
+                    }
+                }, 100);
+            } catch (err) {
+                console.error('Failed to load portfolio data:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
             }
-        }
-    }, []);
+        };
+
+        loadData();
+    }, [responsiveConstants.MONTH_WIDTH]);
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -373,6 +387,31 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     return (
         <div className="w-full flex flex-col">
+            {/* Loading State */}
+            {loading && (
+                <div className="flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-3">Loading portfolio data...</span>
+                </div>
+            )}
+
+            {/* Error State */}
+            {error && (
+                <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded m-4">
+                    <h3 className="font-semibold">Error Loading Portfolio Data</h3>
+                    <p>{error}</p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
+            {/* Main Content - Only show when not loading and no error */}
+            {!loading && !error && (
+            <>
             {/* Responsive Header */}
             <div className="flex-shrink-0 p-2 sm:p-4">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -697,6 +736,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     </div>
                 </div>
             </div>
+            </>
+            )}
         </div>
     );
 };

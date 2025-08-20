@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { processRegionData, getRegionFilterOptions } from '../services/dataService';
+import { processRegionData, getRegionFilterOptions } from '../services/apiDataService';
 import { parseDate, calculatePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
@@ -126,6 +126,8 @@ const RegionRoadMap = () => {
     const [availableMarkets, setAvailableMarkets] = useState([]);
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -143,41 +145,62 @@ const RegionRoadMap = () => {
 
     // Load filter options on component mount
     useEffect(() => {
-        const options = getRegionFilterOptions();
-        setFilterOptions(options);
-        setAvailableMarkets(options.markets);
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const options = await getRegionFilterOptions();
+                setFilterOptions(options);
+                setAvailableMarkets(options.markets);
 
-        // Initial scroll to show June 2025 to June 2026 (responsive months)
-        if (timelineScrollRef.current) {
-            // Calculate scroll position to show June 2025 (current month - 2)
-            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
-            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
-            timelineScrollRef.current.scrollLeft = scrollPosition;
-            // Sync gantt scroll position
-            if (ganttScrollRef.current) {
-                ganttScrollRef.current.scrollLeft = scrollPosition;
+                // Initial scroll to show June 2025 to June 2026 (responsive months)
+                if (timelineScrollRef.current) {
+                    // Calculate scroll position to show June 2025 (current month - 2)
+                    const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
+                    const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+                    timelineScrollRef.current.scrollLeft = scrollPosition;
+                    // Sync gantt scroll position
+                    if (ganttScrollRef.current) {
+                        ganttScrollRef.current.scrollLeft = scrollPosition;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load region filter options:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
             }
-        }
+        };
+
+        loadData();
     }, []);
 
     // Update available markets when region changes
     useEffect(() => {
-        if (filters.region === 'All') {
-            setAvailableMarkets(filterOptions.markets);
-        } else {
-            // Filter markets based on selected region
-            const regionSpecificMarkets = filterOptions.markets.filter(market => {
-                // Check if this market belongs to the selected region
-                const regionData = processRegionData({ region: filters.region });
-                return regionData.some(project => project.market === market);
-            });
-            setAvailableMarkets(regionSpecificMarkets);
+        const updateMarkets = async () => {
+            if (filters.region === 'All') {
+                setAvailableMarkets(filterOptions.markets);
+            } else {
+                try {
+                    // Filter markets based on selected region
+                    const regionData = await processRegionData({ region: filters.region });
+                    const regionSpecificMarkets = filterOptions.markets.filter(market => {
+                        return regionData.some(project => project.market === market);
+                    });
+                    setAvailableMarkets(regionSpecificMarkets);
 
-            // Reset market filter if current selection is not available
-            if (filters.market !== 'All' && !regionSpecificMarkets.includes(filters.market)) {
-                setFilters(prev => ({ ...prev, market: 'All' }));
+                    // Reset market filter if current selection is not available
+                    if (filters.market !== 'All' && !regionSpecificMarkets.includes(filters.market)) {
+                        setFilters(prev => ({ ...prev, market: 'All' }));
+                    }
+                } catch (err) {
+                    console.error('Failed to filter markets by region:', err);
+                    setAvailableMarkets(filterOptions.markets);
+                }
             }
-        }
+        };
+
+        updateMarkets();
     }, [filters.region, filterOptions.markets]);
 
     // Scroll synchronization handlers
@@ -208,10 +231,53 @@ const RegionRoadMap = () => {
         }
     };
 
-    // Process data based on current filters
-    const processedData = useMemo(() => {
-        return processRegionData(filters);
-    }, [filters]);
+    const [processedData, setProcessedData] = useState([]);
+
+    // Load and process region data based on current filters
+    useEffect(() => {
+        const loadRegionData = async () => {
+            if (loading || error) return;
+            try {
+                const data = await processRegionData(filters);
+                setProcessedData(data);
+            } catch (err) {
+                console.error('Failed to process region data:', err);
+                setError(err.message);
+            }
+        };
+
+        loadRegionData();
+    }, [filters, loading, error]);
+
+    // Loading state
+    if (loading) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+                    <span className="ml-4 text-lg text-gray-600">Loading region data...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                    <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Region Data</h3>
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     // Use the standard 73-month timeline
     const { startDate, endDate } = getTimelineRange();

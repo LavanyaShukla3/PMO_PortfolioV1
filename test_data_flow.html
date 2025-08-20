@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Flow Test</title>
+</head>
+<body>
+    <h1>Testing Data Flow</h1>
+    <div id="results"></div>
+
+    <script>
+        async function testDataFlow() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test hierarchy data
+                resultsDiv.innerHTML += '<h3>Testing Hierarchy Data...</h3>';
+                const hierarchyResponse = await fetch('http://localhost:5000/api/hierarchy_data');
+                const hierarchyResult = await hierarchyResponse.json();
+                
+                resultsDiv.innerHTML += `<p>Hierarchy Records: ${hierarchyResult.data?.length || 0}</p>`;
+                resultsDiv.innerHTML += `<p>Mode: ${hierarchyResult.mode}</p>`;
+                
+                // Filter for Portfolio records
+                const portfolioRecords = hierarchyResult.data?.filter(item => item.COE_ROADMAP_TYPE === 'Portfolio') || [];
+                resultsDiv.innerHTML += `<p>Portfolio Records: ${portfolioRecords.length}</p>`;
+                
+                if (portfolioRecords.length > 0) {
+                    resultsDiv.innerHTML += '<h4>Sample Portfolio Record:</h4>';
+                    resultsDiv.innerHTML += `<pre>${JSON.stringify(portfolioRecords[0], null, 2)}</pre>`;
+                }
+                
+                // Test investment data
+                resultsDiv.innerHTML += '<h3>Testing Investment Data...</h3>';
+                const investmentResponse = await fetch('http://localhost:5000/api/investment_data');
+                const investmentResult = await investmentResponse.json();
+                
+                resultsDiv.innerHTML += `<p>Investment Records: ${investmentResult.data?.length || 0}</p>`;
+                
+                // Filter for Investment records
+                const investmentRecords = investmentResult.data?.filter(item => item.ROADMAP_ELEMENT === 'Investment') || [];
+                resultsDiv.innerHTML += `<p>Investment Element Records: ${investmentRecords.length}</p>`;
+                
+                if (investmentRecords.length > 0) {
+                    resultsDiv.innerHTML += '<h4>Sample Investment Record:</h4>';
+                    resultsDiv.innerHTML += `<pre>${JSON.stringify(investmentRecords[0], null, 2)}</pre>`;
+                }
+                
+                // Test mapping
+                resultsDiv.innerHTML += '<h3>Testing Mapping...</h3>';
+                if (portfolioRecords.length > 0 && investmentRecords.length > 0) {
+                    const samplePortfolio = portfolioRecords[0];
+                    const matchingInvestment = investmentRecords.find(inv => inv.INV_EXT_ID === samplePortfolio.CHILD_ID);
+                    
+                    resultsDiv.innerHTML += `<p>Sample Portfolio CHILD_ID: ${samplePortfolio.CHILD_ID}</p>`;
+                    resultsDiv.innerHTML += `<p>Matching Investment Found: ${matchingInvestment ? 'YES' : 'NO'}</p>`;
+                    
+                    if (matchingInvestment) {
+                        resultsDiv.innerHTML += '<h4>Matching Investment:</h4>';
+                        resultsDiv.innerHTML += `<pre>${JSON.stringify(matchingInvestment, null, 2)}</pre>`;
+                    }
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run the test when page loads
+        testDataFlow();
+    </script>
+</body>
+</html>

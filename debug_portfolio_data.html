@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portfolio Data Debug</title>
+</head>
+<body>
+    <h1>Portfolio Data Debug</h1>
+    <div id="hierarchy-data">
+        <h2>Hierarchy Data</h2>
+        <pre id="hierarchy-output"></pre>
+    </div>
+    <div id="investment-data">
+        <h2>Investment Data</h2>
+        <pre id="investment-output"></pre>
+    </div>
+    <div id="portfolio-filtered">
+        <h2>Portfolio Filtered Data</h2>
+        <pre id="portfolio-output"></pre>
+    </div>
+
+    <script>
+        async function debugPortfolioData() {
+            try {
+                // Fetch hierarchy data
+                const hierarchyResponse = await fetch('http://localhost:5000/api/hierarchy_data');
+                const hierarchyData = await hierarchyResponse.json();
+                document.getElementById('hierarchy-output').textContent = JSON.stringify(hierarchyData, null, 2);
+
+                // Fetch investment data
+                const investmentResponse = await fetch('http://localhost:5000/api/investment_data');
+                const investmentData = await investmentResponse.json();
+                document.getElementById('investment-output').textContent = JSON.stringify(investmentData, null, 2);
+
+                // Filter portfolio data
+                const portfolioData = hierarchyData.data.filter(item => item.COE_ROADMAP_TYPE === 'Portfolio');
+                document.getElementById('portfolio-output').textContent = JSON.stringify(portfolioData, null, 2);
+
+                console.log('Portfolio Records:', portfolioData.length);
+                console.log('Investment Records:', investmentData.data.length);
+
+                // Check mapping
+                portfolioData.forEach(portfolio => {
+                    const matchingInvestments = investmentData.data.filter(inv => inv.INV_EXT_ID === portfolio.CHILD_ID);
+                    console.log(`Portfolio ${portfolio.CHILD_ID} (${portfolio.CHILD_NAME}) has ${matchingInvestments.length} matching investments`);
+                });
+
+            } catch (error) {
+                console.error('Debug error:', error);
+            }
+        }
+
+        debugPortfolioData();
+    </script>
+</body>
+</html>

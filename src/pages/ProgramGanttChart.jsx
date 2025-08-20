@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
-import { processProgramData } from '../services/dataService';
+import { processProgramData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
-import programData from '../services/ProgramData.json';
 
 // Zoom levels configuration
 const ZOOM_LEVELS = {
@@ -174,6 +173,8 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const [selectedProgram, setSelectedProgram] = useState('');
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -182,11 +183,41 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const { startDate } = getTimelineRange();
     const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
+                    <span className="ml-4 text-lg text-gray-600">Loading program data...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                    <h3 className="text-lg font-semibold text-red-800 mb-2">Failed to Load Program Data</h3>
+                    <p className="text-red-600 mb-4">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     // Get unique program names and set default selection
-    const programNames = Array.from(new Set(programData
+    const programNames = processedData.length > 0 ? Array.from(new Set(processedData
         .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
         .map(item => item.COE_ROADMAP_PARENT_NAME)
-    ));
+    )) : [];
 
     // Handle window resize for responsive behavior
     useEffect(() => {
@@ -199,13 +230,31 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     }, []);
 
     useEffect(() => {
-        const data = processProgramData();
-        setProcessedData(data);
+        const loadData = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const data = await processProgramData();
+                setProcessedData(data);
 
-        // Set default program (first in the list)
-        if (programNames.length > 0 && !selectedProgram) {
-            setSelectedProgram(programNames[0]);
-        }
+                // Set default program (first in the list)
+                const programNames = Array.from(new Set(data
+                    .filter(item => item.COE_ROADMAP_PARENT_ID === item.CHILD_ID)
+                    .map(item => item.COE_ROADMAP_PARENT_NAME)
+                ));
+                
+                if (programNames.length > 0 && !selectedProgram) {
+                    setSelectedProgram(programNames[0]);
+                }
+            } catch (err) {
+                console.error('Failed to load program data:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
     }, []);
 
     useEffect(() => {
