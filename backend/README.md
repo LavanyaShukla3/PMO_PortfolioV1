@@ -1,135 +1,164 @@
-# PMO Portfolio Flask Backend
+# PMO Portfolio Backend
 
-Flask backend service for connecting PMO Portfolio frontend to Azure Databricks.
+Flask API server that connects to Azure Databricks and provides data endpoints for the PMO Portfolio React application.
 
 ## 🚀 Quick Start
 
-### 1. Setup Environment
+### 1. Install Dependencies
 
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
+cd backend
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Variables
+### 2. Environment Setup
 
-```bash
-# Copy example environment file
-cp .env.example .env
+The `.env` file is already configured with your Databricks credentials:
 
-# Edit .env with your Azure Databricks credentials
+```
+DATABRICKS_SERVER_HOSTNAME=adb-1944263524297370.10.azuredatabricks.net
+DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/2dd0b6935c0ba472
+DATABRICKS_ACCESS_TOKEN=dapi6458498104f82b27fd9d7d705f318qwe
 ```
 
-### 3. Required Environment Variables
-
-```env
-# Azure Databricks Configuration
-DATABRICKS_SERVER_HOSTNAME=your-workspace.cloud.databricks.com
-DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/your-warehouse-id
-DATABRICKS_ACCESS_TOKEN=your-personal-access-token
-
-# Optional Configuration
-DATABRICKS_CATALOG=main
-DATABRICKS_SCHEMA=pmo_portfolio
-FLASK_ENV=development
-PORT=5000
-```
-
-### 4. Run the Application
+### 3. Test the Connection
 
 ```bash
-# Development mode
+python test_backend.py
+```
+
+This will test:
+- ✅ Databricks connection
+- ✅ SQL query execution
+- ✅ Flask server endpoints
+- ✅ Data retrieval
+
+### 4. Start the Server
+
+```bash
 python app.py
-
-# Production mode with Gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
+
+The server will start on `http://localhost:5000`
 
 ## 📡 API Endpoints
 
 ### Health Check
-- `GET /health` - Service health status
-
-### Data Endpoints
-- `GET /api/portfolio` - Get portfolio data
-- `GET /api/program` - Get program data  
-- `GET /api/subprogram` - Get sub-program data
-- `GET /api/investment` - Get investment data
-
-### Filtered Data
-- `GET /api/data/<data_type>?filter=value` - Get filtered data
-
-## 🔧 Azure Databricks Setup
-
-### 1. Get Access Token
-1. Go to your Databricks workspace
-2. Click on your profile → User Settings
-3. Go to Access Tokens tab
-4. Generate New Token
-5. Copy the token to your `.env` file
-
-### 2. Get Connection Details
-1. Go to SQL Warehouses in your workspace
-2. Click on your warehouse
-3. Go to Connection Details tab
-4. Copy Server hostname and HTTP path
-
-### 3. Table Structure
-Ensure your Databricks tables match the expected schema:
-
-```sql
--- portfolio_data table
-CREATE TABLE portfolio_data (
-    HIERARCHY_EXTERNAL_ID STRING,
-    HIERARCHY_NAME STRING,
-    COE_ROADMAP_TYPE STRING,
-    COE_ROADMAP_PARENT_ID STRING,
-    COE_ROADMAP_PARENT_NAME STRING,
-    COE_ROADMAP_PARENT_CLRTY_TYPE STRING,
-    CHILD_ID STRING,
-    CHILD_NAME STRING,
-    CLRTY_CHILD_TYPE STRING,
-    If_parent_exist INT
-);
-
--- Similar structure for program_data, subprogram_data, investment_data
 ```
+GET /api/health
+```
+Returns server status and version info.
+
+### Test Connection
+```
+GET /api/test-connection
+```
+Tests the Databricks connection.
+
+### Hierarchy Data
+```
+GET /api/hierarchy_data
+```
+Returns hierarchy data (equivalent to portfolioData.json, ProgramData.json, etc.)
+
+### Investment Data
+```
+GET /api/investment_data
+```
+Returns investment/roadmap data (equivalent to investmentData.json)
+
+### All Data
+```
+GET /api/data
+```
+Returns both hierarchy and investment data in a single request.
+
+## 📁 Project Structure
+
+```
+backend/
+├── app.py                    # Main Flask application
+├── databricks_client.py      # Databricks connection handler
+├── test_backend.py          # Test suite
+├── requirements.txt         # Python dependencies
+├── .env                     # Environment variables (configured)
+├── .env.example            # Environment template
+└── sql_queries/
+    ├── hierarchy_query.sql  # Hierarchy data SQL query
+    └── investment_query.sql # Investment data SQL query
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+- `DATABRICKS_SERVER_HOSTNAME`: Your Databricks server hostname
+- `DATABRICKS_HTTP_PATH`: SQL warehouse HTTP path
+- `DATABRICKS_ACCESS_TOKEN`: Personal Access Token for authentication
+- `FLASK_ENV`: Flask environment (development/production)
+- `FLASK_DEBUG`: Enable/disable debug mode
+- `FRONTEND_URL`: React frontend URL for CORS
+
+### SQL Queries
+
+The SQL queries are stored in the `sql_queries/` directory:
+
+- `hierarchy_query.sql`: Based on "Clarity Roadmaps - Hierarchy data - SQL query 1.txt"
+- `investment_query.sql`: Based on "Clarity Roadmaps - Roadmap elements by investment - SQL query - As at 20250604 1.txt"
 
 ## 🧪 Testing
 
-```bash
-# Test connection
-curl http://localhost:5000/health
+Run the test suite to verify everything is working:
 
-# Test data endpoint
-curl http://localhost:5000/api/portfolio
+```bash
+python test_backend.py
 ```
 
-## 🔒 Security Notes
+The tests will check:
+1. Databricks connection
+2. SQL query execution
+3. Flask server health
+4. Data endpoint functionality
 
-- Never commit your `.env` file
-- Use environment variables for all sensitive data
-- Consider using Azure Key Vault for production
-- Implement proper authentication for production use
+## 🔒 Security
 
-## 📝 Development
+- Credentials are stored in environment variables (not hardcoded)
+- CORS is configured for your React frontend
+- Access tokens are used for secure Databricks authentication
 
-### Adding New Endpoints
-1. Add route in `app.py`
-2. Add corresponding method in `databricks_client.py`
-3. Test with sample data first
-4. Update documentation
+## 🐛 Troubleshooting
 
-### Error Handling
-- All endpoints include try-catch blocks
-- Errors are logged with structured logging
-- Client receives appropriate HTTP status codes
+### Connection Issues
+- Verify your Databricks credentials in `.env`
+- Check that your SQL warehouse is running
+- Ensure your Personal Access Token is valid
+
+### Query Issues
+- Check the SQL query files in `sql_queries/`
+- Verify table permissions in Databricks
+- Check Databricks logs for SQL errors
+
+### CORS Issues
+- Update `FRONTEND_URL` in `.env` to match your React app URL
+- Restart the Flask server after changing environment variables
+
+## 📊 Data Flow
+
+```
+React Frontend → Flask API → Databricks SQL Warehouse → Unity Catalog Tables
+```
+
+1. React app makes HTTP requests to Flask endpoints
+2. Flask server executes SQL queries against Databricks
+3. Databricks returns data from Unity Catalog tables
+4. Flask formats and returns JSON data to React
+5. React processes data the same way as before (but now live data!)
+
+## 🚀 Next Steps
+
+After verifying the backend works:
+
+1. **Test with Postman/Browser**: Visit `http://localhost:5000/api/health`
+2. **Run Full Test Suite**: `python test_backend.py`
+3. **Integrate with Frontend**: Update React components to use API endpoints
+4. **Production Deployment**: Configure for your production environment

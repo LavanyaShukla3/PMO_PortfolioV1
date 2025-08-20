@@ -1,202 +1,232 @@
 """
-PMO Portfolio Flask Backend
-Connects to Azure Databricks for real-time data access
+Flask API server for PMO Portfolio application.
+Provides endpoints to fetch data from Azure Databricks.
 """
-
+import os
+import logging
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import os
+from databricks_client import databricks_client
 from dotenv import load_dotenv
-import logging
-from datetime import datetime
-import json
-from databricks_client import DatabricksClient
 
 # Load environment variables
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Initialize Flask app
 app = Flask(__name__)
 
-# Configure CORS for your React frontend
-CORS(app, origins=[
-    "http://localhost:3000",
-    "http://localhost:3001", 
-    "http://localhost:3002"
-])
+# Configure CORS
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+CORS(app, origins=[frontend_url])
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# SQL query file paths
+SQL_QUERIES_DIR = os.path.join(os.path.dirname(__file__), 'sql_queries')
+HIERARCHY_QUERY_FILE = os.path.join(SQL_QUERIES_DIR, 'hierarchy_query.sql')
+INVESTMENT_QUERY_FILE = os.path.join(SQL_QUERIES_DIR, 'investment_query.sql')
 
-# Initialize Databricks client
-try:
-    db_client = DatabricksClient()
-    logger.info("Databricks client initialized successfully")
-except Exception as e:
-    logger.warning(f"Databricks client initialization failed: {str(e)}")
-    logger.info("Running in mock data mode")
-    db_client = None
 
-# Health check endpoint
-@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint."""
     return jsonify({
         'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'service': 'PMO Portfolio Backend'
+        'message': 'PMO Portfolio API is running',
+        'version': '1.0.0'
     })
 
-# Portfolio data endpoint
-@app.route('/api/portfolio', methods=['GET'])
-def get_portfolio_data():
-    """Get portfolio data from Databricks"""
+
+@app.route('/api/test-connection', methods=['GET'])
+def test_databricks_connection():
+    """Test Databricks connection endpoint."""
     try:
-        logger.info("Fetching portfolio data from Databricks")
-
-        if db_client:
-            # Use real Databricks connection
-            data = db_client.get_portfolio_data()
-            source = 'Azure Databricks'
+        is_connected = databricks_client.test_connection()
+        
+        if is_connected:
+            return jsonify({
+                'status': 'success',
+                'message': 'Databricks connection successful'
+            })
         else:
-            # Fallback to mock data
-            data = []
-            source = 'Mock Data (Databricks not configured)'
-
-        response_data = {
-            'data': data,
-            'last_updated': datetime.now().isoformat(),
-            'source': source,
-            'count': len(data)
-        }
-
-        return jsonify(response_data)
-
+            return jsonify({
+                'status': 'error',
+                'message': 'Databricks connection failed'
+            }), 500
+            
     except Exception as e:
-        logger.error(f"Error fetching portfolio data: {str(e)}")
-        return jsonify({'error': 'Failed to fetch portfolio data'}), 500
+        logger.error(f"Connection test error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Connection test failed: {str(e)}'
+        }), 500
 
-# Program data endpoint
-@app.route('/api/program', methods=['GET'])
-def get_program_data():
-    """Get program data from Databricks"""
+
+@app.route('/api/hierarchy_data', methods=['GET'])
+def get_hierarchy_data():
+    """
+    Fetch hierarchy data from Databricks.
+    Returns the same structure as hierarchyData.json for compatibility.
+    """
     try:
-        logger.info("Fetching program data from Databricks")
-
-        if db_client:
-            data = db_client.get_program_data()
-            source = 'Azure Databricks'
-        else:
-            data = []
-            source = 'Mock Data (Databricks not configured)'
-
-        response_data = {
+        logger.info("Fetching hierarchy data from Databricks...")
+        
+        # Execute the hierarchy query
+        data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        
+        logger.info(f"Successfully fetched {len(data)} hierarchy records")
+        
+        return jsonify({
+            'status': 'success',
             'data': data,
-            'last_updated': datetime.now().isoformat(),
-            'source': source,
             'count': len(data)
-        }
-
-        return jsonify(response_data)
-
+        })
+        
+    except FileNotFoundError:
+        error_msg = f"Hierarchy query file not found: {HIERARCHY_QUERY_FILE}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+        
     except Exception as e:
-        logger.error(f"Error fetching program data: {str(e)}")
-        return jsonify({'error': 'Failed to fetch program data'}), 500
+        error_msg = f"Failed to fetch hierarchy data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
 
-# Sub-program data endpoint
-@app.route('/api/subprogram', methods=['GET'])
-def get_subprogram_data():
-    """Get sub-program data from Databricks"""
-    try:
-        logger.info("Fetching sub-program data from Databricks")
 
-        if db_client:
-            data = db_client.get_subprogram_data()
-            source = 'Azure Databricks'
-        else:
-            data = []
-            source = 'Mock Data (Databricks not configured)'
-
-        response_data = {
-            'data': data,
-            'last_updated': datetime.now().isoformat(),
-            'source': source,
-            'count': len(data)
-        }
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        logger.error(f"Error fetching sub-program data: {str(e)}")
-        return jsonify({'error': 'Failed to fetch sub-program data'}), 500
-
-# Investment data endpoint
-@app.route('/api/investment', methods=['GET'])
+@app.route('/api/investment_data', methods=['GET'])
 def get_investment_data():
-    """Get investment data from Databricks"""
+    """
+    Fetch investment/roadmap data from Databricks.
+    Returns the same structure as investmentData.json for compatibility.
+    """
     try:
-        logger.info("Fetching investment data from Databricks")
-
-        if db_client:
-            data = db_client.get_investment_data()
-            source = 'Azure Databricks'
-        else:
-            data = []
-            source = 'Mock Data (Databricks not configured)'
-
-        response_data = {
+        logger.info("Fetching investment data from Databricks...")
+        
+        # Execute the investment query
+        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
+        
+        logger.info(f"Successfully fetched {len(data)} investment records")
+        
+        return jsonify({
+            'status': 'success',
             'data': data,
-            'last_updated': datetime.now().isoformat(),
-            'source': source,
             'count': len(data)
-        }
-
-        return jsonify(response_data)
-
+        })
+        
+    except FileNotFoundError:
+        error_msg = f"Investment query file not found: {INVESTMENT_QUERY_FILE}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+        
     except Exception as e:
-        logger.error(f"Error fetching investment data: {str(e)}")
-        return jsonify({'error': 'Failed to fetch investment data'}), 500
+        error_msg = f"Failed to fetch investment data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
 
-# Filtered data endpoint
-@app.route('/api/data/<data_type>', methods=['GET'])
-def get_filtered_data(data_type):
-    """Get filtered data based on query parameters"""
+
+@app.route('/api/data', methods=['GET'])
+def get_all_data():
+    """
+    Fetch both hierarchy and investment data in a single request.
+    Useful for frontend components that need both datasets.
+    """
     try:
-        # Get query parameters
-        filters = request.args.to_dict()
-        logger.info(f"Fetching {data_type} data with filters: {filters}")
+        logger.info("Fetching all data from Databricks...")
         
-        # TODO: Apply filters to Databricks query
+        # Execute both queries
+        hierarchy_data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        investment_data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
         
-        mock_data = {
-            'data_type': data_type,
-            'filters': filters,
-            'data': [],
-            'last_updated': datetime.now().isoformat(),
-            'source': 'Azure Databricks'
-        }
+        logger.info(f"Successfully fetched {len(hierarchy_data)} hierarchy records and {len(investment_data)} investment records")
         
-        return jsonify(mock_data)
-    
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'hierarchy': hierarchy_data,
+                'investment': investment_data
+            },
+            'counts': {
+                'hierarchy': len(hierarchy_data),
+                'investment': len(investment_data)
+            }
+        })
+        
     except Exception as e:
-        logger.error(f"Error fetching filtered {data_type} data: {str(e)}")
-        return jsonify({'error': f'Failed to fetch {data_type} data'}), 500
+        error_msg = f"Failed to fetch all data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    return jsonify({
+        'status': 'error',
+        'message': 'Endpoint not found'
+    }), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    return jsonify({
+        'status': 'error',
+        'message': 'Internal server error'
+    }), 500
+
 
 if __name__ == '__main__':
-    # Validate configuration
-    required_vars = ['DATABRICKS_SERVER_HOSTNAME', 'DATABRICKS_HTTP_PATH', 'DATABRICKS_ACCESS_TOKEN']
-    missing_config = [var for var in required_vars if not os.getenv(var)]
-
-    if missing_config:
-        logger.warning(f"Missing Databricks configuration: {missing_config}")
-        logger.info("Running in development mode with mock data")
-    else:
-        logger.info("Databricks configuration found, connecting to live data")
-
-    # Run the Flask app
+    # Validate environment variables on startup
+    required_env_vars = [
+        'DATABRICKS_SERVER_HOSTNAME',
+        'DATABRICKS_HTTP_PATH', 
+        'DATABRICKS_ACCESS_TOKEN'
+    ]
+    
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        logger.error("Please check your .env file and ensure all required variables are set.")
+        exit(1)
+    
+    # Check if SQL query files exist
+    if not os.path.exists(HIERARCHY_QUERY_FILE):
+        logger.error(f"Hierarchy query file not found: {HIERARCHY_QUERY_FILE}")
+        exit(1)
+    
+    if not os.path.exists(INVESTMENT_QUERY_FILE):
+        logger.error(f"Investment query file not found: {INVESTMENT_QUERY_FILE}")
+        exit(1)
+    
+    # Start the Flask server
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    logger.info(f"Starting PMO Portfolio API server on port {port}")
+    logger.info(f"CORS enabled for: {frontend_url}")
+    
     app.run(
         host='0.0.0.0',
-        port=int(os.getenv('PORT', 5000)),
-        debug=os.getenv('FLASK_ENV') == 'development'
+        port=port,
+        debug=debug
     )
