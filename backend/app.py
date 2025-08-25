@@ -261,6 +261,87 @@ def get_investment_data():
         }), 500
 
 
+@app.route('/api/portfolios', methods=['GET'])
+def get_portfolios():
+    """
+    Fetch portfolio hierarchy data from Databricks.
+    Filters for COE_ROADMAP_TYPE = 'Portfolio' only.
+    """
+    if MOCK_MODE:
+        # Filter mock data for Portfolio type only
+        mock_portfolio_data = [item for item in MOCK_HIERARCHY_DATA if item.get('COE_ROADMAP_TYPE') == 'Portfolio']
+        logger.info("Returning mock portfolio data")
+        return jsonify({
+            'status': 'success',
+            'data': mock_portfolio_data,
+            'count': len(mock_portfolio_data),
+            'mode': 'mock'
+        })
+    
+    try:
+        logger.info("Fetching portfolio data from Databricks...")
+        
+        # Execute the hierarchy query and filter for Portfolio type
+        hierarchy_data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        portfolio_data = [item for item in hierarchy_data if item.get('COE_ROADMAP_TYPE') == 'Portfolio']
+        
+        logger.info(f"Successfully fetched {len(portfolio_data)} portfolio records (filtered from {len(hierarchy_data)} total)")
+        
+        return jsonify({
+            'status': 'success',
+            'data': portfolio_data,
+            'count': len(portfolio_data),
+            'mode': 'databricks'
+        })
+        
+    except Exception as e:
+        error_msg = f"Failed to fetch portfolio data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
+@app.route('/api/investments', methods=['GET'])
+def get_investments():
+    """
+    Fetch investment/roadmap data from Databricks.
+    Returns all roadmap elements (investments, phases, milestones).
+    """
+    if MOCK_MODE:
+        logger.info("Returning mock investment data")
+        return jsonify({
+            'status': 'success',
+            'data': MOCK_INVESTMENT_DATA,
+            'count': len(MOCK_INVESTMENT_DATA),
+            'mode': 'mock'
+        })
+    
+    try:
+        logger.info("Fetching investment data from Databricks...")
+        
+        # Execute the investment query
+        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
+        
+        logger.info(f"Successfully fetched {len(data)} investment records")
+        
+        return jsonify({
+            'status': 'success',
+            'data': data,
+            'count': len(data),
+            'mode': 'databricks'
+        })
+        
+    except Exception as e:
+        error_msg = f"Failed to fetch investment data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
     """

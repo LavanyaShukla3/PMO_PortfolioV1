@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
-import { processPortfolioData } from '../services/apiDataService';
+import { processPortfolioDataFromAPI } from '../utils/portfolioDataUtils';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -224,9 +224,13 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             try {
                 setLoading(true);
                 setError(null);
-                const data = await processPortfolioData();
+                console.log('🚀 Loading portfolio data from backend API...');
+                
+                const data = await processPortfolioDataFromAPI();
                 setProcessedData(data);
                 setFilteredData(data);
+                
+                console.log(`✅ Successfully loaded ${data.length} portfolio items from API`);
 
                 // Initial scroll to show June 2025 to June 2026 (responsive months)
                 setTimeout(() => {
@@ -247,7 +251,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     }
                 }, 100);
             } catch (err) {
-                console.error('Failed to load portfolio data:', err);
+                console.error('❌ Failed to load portfolio data from API:', err);
                 setError(err.message);
             } finally {
                 setLoading(false);

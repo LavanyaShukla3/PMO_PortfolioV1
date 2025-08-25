@@ -3,7 +3,7 @@ import PortfolioGanttChart from './pages/PortfolioGanttChart';
 import ProgramGanttChart from './pages/ProgramGanttChart';
 import SubProgramGanttChart from './pages/SubProgramGanttChart';
 import RegionRoadMap from './pages/RegionRoadMap';
-import { validateApiData } from './services/apiDataService';
+import { validateApiData } from './utils/apiValidation';
 import './App.css';
 
 function App() {
