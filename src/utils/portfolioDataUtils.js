@@ -74,15 +74,25 @@ export const processPortfolioDataFromAPI = async () => {
         
         // Process the data using the same logic as the original dataService
         const processedData = portfolioData
-            .map(item => {
+            .map((item, index) => {
+                // Debug: Log first few items to see data structure
+                if (index < 3) {
+                    console.log(`🔍 Portfolio item ${index}:`, item);
+                }
+                
                 const investment = investmentData.find(inv =>
                     inv.INV_EXT_ID === item.CHILD_ID &&
                     inv.ROADMAP_ELEMENT === "Investment"
                 );
 
                 if (!investment) {
-                    console.log(`No investment record for CHILD_ID: ${item.CHILD_ID}`);
+                    console.log(`❌ No investment record for CHILD_ID: ${item.CHILD_ID}`);
                     return null;
+                }
+                
+                // Debug: Log matching investment
+                if (index < 3) {
+                    console.log(`🔍 Matching investment for ${item.CHILD_ID}:`, investment);
                 }
 
                 // Updated milestone mapping logic: Filter for SG3 milestones only
@@ -100,7 +110,7 @@ export const processPortfolioDataFromAPI = async () => {
                         isSG3: true // All filtered milestones are SG3
                     }));
 
-                return {
+                const processedItem = {
                     id: item.CHILD_ID,
                     name: investment.INVESTMENT_NAME || item.CHILD_NAME,
                     parentId: item.COE_ROADMAP_PARENT_ID,
@@ -113,6 +123,15 @@ export const processPortfolioDataFromAPI = async () => {
                     sortOrder: investment.SortOrder || 0,
                     milestones
                 };
+                
+                // Debug: Log final processed item
+                if (index < 3) {
+                    console.log(`🔍 Processed item ${index}:`, processedItem);
+                    console.log(`📅 Raw dates from SQL - Start: "${investment.TASK_START}" (${typeof investment.TASK_START}), End: "${investment.TASK_FINISH}" (${typeof investment.TASK_FINISH})`);
+                    console.log(`📅 Processed dates - Start: ${processedItem.startDate}, End: ${processedItem.endDate}`);
+                }
+                
+                return processedItem;
             })
             .filter(Boolean)
             .sort((a, b) => {
@@ -128,6 +147,22 @@ export const processPortfolioDataFromAPI = async () => {
             });
 
         console.log(`✅ Processed ${processedData.length} portfolio items for Gantt chart`);
+        
+        // Debug: Log sample of final data
+        if (processedData.length > 0) {
+            console.log(`📋 Sample processed data (first 3 items):`, processedData.slice(0, 3));
+            console.log(`📊 Data structure check:`, {
+                hasStartDates: processedData.filter(item => item.startDate).length,
+                hasEndDates: processedData.filter(item => item.endDate).length,
+                totalItems: processedData.length,
+                sampleDates: processedData.slice(0, 3).map(item => ({
+                    name: item.name,
+                    start: item.startDate,
+                    end: item.endDate
+                }))
+            });
+        }
+        
         return processedData;
         
     } catch (error) {

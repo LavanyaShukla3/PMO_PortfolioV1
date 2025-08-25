@@ -20,19 +20,43 @@ const TOTAL_MONTHS = MONTHS_BEFORE + MONTHS_AFTER + 1; // +1 for current month
 
 export const parseDate = (dateString, context = '') => {
     if (!dateString) return null;
+    
+    // Handle different date formats
     try {
-        if (dateString.includes('-')) {
-            const parsedDate = parse(dateString, 'dd-MMM-yy', new Date());
-            console.log('Parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
-            return parsedDate;
-        } else if (dateString.includes('/')) {
+        // First try to parse as a standard JavaScript date (ISO format from SQL)
+        // This handles formats like "2024-08-12" or "2024-08-12T00:00:00.000Z"
+        const directParse = new Date(dateString);
+        if (!isNaN(directParse.getTime())) {
+            console.log('✅ Direct parsing date:', dateString, '→', directParse, context ? `[${context}]` : '');
+            return directParse;
+        }
+        
+        // Legacy format: dd-MMM-yy (e.g., "12-Aug-24")
+        if (dateString.includes('-') && dateString.length <= 10) {
+            // Check if it looks like ISO format (YYYY-MM-DD)
+            if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+                const parsedDate = parse(dateString, 'yyyy-MM-dd', new Date());
+                console.log('✅ ISO format parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
+                return parsedDate;
+            } else {
+                // Legacy dd-MMM-yy format
+                const parsedDate = parse(dateString, 'dd-MMM-yy', new Date());
+                console.log('✅ Legacy format parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
+                return parsedDate;
+            }
+        } 
+        
+        // MM/dd/yyyy format
+        if (dateString.includes('/')) {
             const parsedDate = parse(dateString, 'MM/dd/yyyy', new Date());
-            console.log('Parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
+            console.log('✅ US format parsing date:', dateString, '→', parsedDate, context ? `[${context}]` : '');
             return parsedDate;
         }
+        
+        console.warn('⚠️ Unrecognized date format:', dateString, context ? `[${context}]` : '');
         return null;
     } catch (error) {
-        console.error('Error parsing date:', dateString, error, context ? `[${context}]` : '');
+        console.error('❌ Error parsing date:', dateString, error, context ? `[${context}]` : '');
         return null;
     }
 };
@@ -68,24 +92,30 @@ export const getInitialViewportRange = () => {
  * @returns {number} X-position in pixels
  */
 export const calculatePosition = (date, startDate, monthWidth = MONTH_WIDTH) => {
-
     if (!date || !startDate) {
-        console.warn('Missing date or startDate:', { date, startDate });
+        console.warn('❌ Missing date or startDate:', { date, startDate });
         return 0;
     }
 
     const days = differenceInDays(date, startDate);
-    console.log('Position calculation:', {
-        date,
+    const position = Math.max(0, (days / 30.44) * monthWidth);
+    
+    // Enhanced debug logging
+    console.log('📍 Position calculation:', {
+        inputDate: date,
         startDate,
-        days,
+        daysDifference: days,
         daysPerMonth: 30.44,
         monthsFromStart: days / 30.44,
         monthWidth,
-        position: Math.max(0, (days / 30.44) * monthWidth)
+        calculatedPosition: position,
+        dateType: typeof date,
+        startDateType: typeof startDate,
+        isValidDate: date instanceof Date && !isNaN(date.getTime()),
+        isValidStartDate: startDate instanceof Date && !isNaN(startDate.getTime())
     });
 
-    return Math.max(0, (days / 30.44) * monthWidth);
+    return position;
 };
 
 /**
