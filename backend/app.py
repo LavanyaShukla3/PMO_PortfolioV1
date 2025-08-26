@@ -7,11 +7,17 @@ import logging
 import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from databricks_client import databricks_client
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables first
 load_dotenv()
+
+# Check if running in mock mode early
+MOCK_MODE = os.getenv('MOCK_MODE', 'false').lower() == 'true'
+
+# Only import databricks_client if not in mock mode
+if not MOCK_MODE:
+    from databricks_client import databricks_client
 
 # Configure logging
 logging.basicConfig(
@@ -26,9 +32,6 @@ app = Flask(__name__)
 # Configure CORS
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 CORS(app, origins=[frontend_url])
-
-# Check if running in mock mode
-MOCK_MODE = os.getenv('MOCK_MODE', 'false').lower() == 'true'
 
 # SQL query file paths
 SQL_QUERIES_DIR = os.path.join(os.path.dirname(__file__), 'sql_queries')
