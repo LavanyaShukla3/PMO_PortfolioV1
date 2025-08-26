@@ -167,7 +167,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
     return processedMilestones.sort((a, b) => a.date - b.date);
 };
 
-const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackToPortfolio, onDrillToSubProgram }) => {
+const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio, onDrillToSubProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('All');
@@ -226,12 +226,16 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                 setLoading(true);
                 setError(null);
                 console.log('🚀 Loading program data from backend API...');
+                console.log('🔍 Selected Portfolio ID:', selectedProjectId);
+                console.log('🔍 Selected Portfolio Name:', selectedProjectName);
                 
-                const data = await processProgramData(selectedPortfolioId);
+                const data = await processProgramData(selectedProjectId);
                 setProcessedData(data);
                 setFilteredData(data);
                 
                 console.log(`✅ Successfully loaded ${data.length} program items from API`);
+                console.log('🔍 Filtered for selected project ID:', selectedProjectId);
+                console.log('📊 Program data preview:', data.slice(0, 3));
 
                 // Initial scroll to show June 2025 to June 2026 (responsive months)
                 setTimeout(() => {
@@ -258,7 +262,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
         };
 
         loadData();
-    }, [selectedPortfolioId, responsiveConstants.MONTH_WIDTH]);
+    }, [selectedProjectId, responsiveConstants.MONTH_WIDTH]);
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -443,10 +447,15 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                 ← Back to Portfolio
                             </button>
                         )}
-                        {selectedPortfolioName && (
+                        {selectedProjectName ? (
                             <>
                                 <span className="text-gray-400">/</span>
-                                <span className="font-medium">{selectedPortfolioName}</span>
+                                <span className="font-medium">{selectedProjectName}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-gray-400">/</span>
+                                <span className="font-medium">All Programs</span>
                             </>
                         )}
                     </div>
@@ -711,6 +720,19 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                 const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;
+                                
+                                // Debug: Log date parsing for first few projects
+                                if (index < 2) {
+                                    console.log(`🗓️ Project "${project.name}" dates:`, {
+                                        rawStart: project.startDate,
+                                        rawEnd: project.endDate,
+                                        parsedStart: projectStartDate,
+                                        parsedEnd: projectEndDate,
+                                        startX,
+                                        endX,
+                                        width
+                                    });
+                                }
 
                                 // Calculate the project's total height and center point
                                 const totalHeight = calculateBarHeight(project);

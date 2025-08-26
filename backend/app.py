@@ -1,23 +1,17 @@
 """
 Flask API server for PMO Portfolio application.
-Provides endpoints to fetch data from Azure Databricks or mock data.
+Provides endpoints to fetch data from Azure Databricks.
 """
 import os
 import logging
 import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from databricks_client import databricks_client
 from dotenv import load_dotenv
 
-# Load environment variables first
+# Load environment variables
 load_dotenv()
-
-# Check if running in mock mode early
-MOCK_MODE = os.getenv('MOCK_MODE', 'false').lower() == 'true'
-
-# Only import databricks_client if not in mock mode
-if not MOCK_MODE:
-    from databricks_client import databricks_client
 
 # Configure logging
 logging.basicConfig(
@@ -38,91 +32,6 @@ SQL_QUERIES_DIR = os.path.join(os.path.dirname(__file__), 'sql_queries')
 HIERARCHY_QUERY_FILE = os.path.join(SQL_QUERIES_DIR, 'hierarchy_query.sql')
 INVESTMENT_QUERY_FILE = os.path.join(SQL_QUERIES_DIR, 'investment_query.sql')
 
-# Mock data for testing
-MOCK_HIERARCHY_DATA = [
-    {
-        "HIERARCHY_EXTERNAL_ID": "H-0056",
-        "HIERARCHY_NAME": "PMO COE Hierarchy",
-        "COE_ROADMAP_TYPE": "Portfolio",
-        "COE_ROADMAP_PARENT_ID": "PTF000109", 
-        "COE_ROADMAP_PARENT_NAME": "Commercial Programs",
-        "COE_ROADMAP_PARENT_CLRTY_TYPE": "Portfolios",
-        "CHILD_ID": "PROG000328",
-        "CHILD_NAME": "Account IQ",
-        "CLRTY_CHILD_TYPE": "Programs",
-        "If_parent_exist": 0
-    },
-    {
-        "HIERARCHY_EXTERNAL_ID": "H-0056",
-        "HIERARCHY_NAME": "PMO COE Hierarchy", 
-        "COE_ROADMAP_TYPE": "Program",
-        "COE_ROADMAP_PARENT_ID": "PROG000328",
-        "COE_ROADMAP_PARENT_NAME": "Account IQ",
-        "COE_ROADMAP_PARENT_CLRTY_TYPE": "Programs",
-        "CHILD_ID": "PR00003652",
-        "CHILD_NAME": "Test Investment",
-        "CLRTY_CHILD_TYPE": "Projects", 
-        "If_parent_exist": 1
-    }
-]
-
-MOCK_INVESTMENT_DATA = [
-    # Investment record for the Program (Portfolio view shows programs)
-    {
-        "INV_INT_ID": 6352059,
-        "INV_EXT_ID": "PROG000328",
-        "CLRTY_INV_TYPE": "Program",
-        "INVESTMENT_NAME": "Account IQ",
-        "ROADMAP_ELEMENT": "Investment",
-        "TASK_NAME": "Start/Finish Dates",
-        "TASK_START": "01-Jan-24",
-        "TASK_FINISH": "31-Dec-25",
-        "INV_OVERALL_STATUS": "Green",
-        "INV_FUNCTION": "Commercial",
-        "SortOrder": 10200
-    },
-    # Milestone for the Program
-    {
-        "INV_INT_ID": 6352070,
-        "INV_EXT_ID": "PROG000328",
-        "CLRTY_INV_TYPE": "Program",
-        "INVESTMENT_NAME": "Account IQ",
-        "ROADMAP_ELEMENT": "Milestones - Other",
-        "TASK_NAME": "SG3 Program Review",
-        "TASK_START": "15-Jun-24",
-        "TASK_FINISH": "15-Jun-24",
-        "MILESTONE_STATUS": "Green",
-        "INV_FUNCTION": "Commercial"
-    },
-    # Investment record for the Project (Program/SubProgram views show projects)
-    {
-        "INV_INT_ID": 6352060,
-        "INV_EXT_ID": "PR00003652",
-        "CLRTY_INV_TYPE": "Project",
-        "INVESTMENT_NAME": "Manufacturing Labor Forecasting Tool (MLFT)",
-        "ROADMAP_ELEMENT": "Investment",
-        "TASK_NAME": "Start/Finish Dates",
-        "TASK_START": "12-Aug-24",
-        "TASK_FINISH": "01-Jul-25",
-        "INV_OVERALL_STATUS": "Green",
-        "INV_FUNCTION": "Supply Chain",
-        "SortOrder": 10274
-    },
-    # Milestone for the Project
-    {
-        "INV_INT_ID": 6352061,
-        "INV_EXT_ID": "PR00003652", 
-        "CLRTY_INV_TYPE": "Project",
-        "INVESTMENT_NAME": "Manufacturing Labor Forecasting Tool (MLFT)",
-        "ROADMAP_ELEMENT": "Milestones - Other",
-        "TASK_NAME": "SG3 Gate Review",
-        "TASK_START": "15-Oct-24",
-        "TASK_FINISH": "15-Oct-24",
-        "MILESTONE_STATUS": "Green",
-        "INV_FUNCTION": "Supply Chain"
-    }
-]
-
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -131,19 +40,13 @@ def health_check():
         'status': 'healthy',
         'message': 'PMO Portfolio API is running',
         'version': '1.0.0',
-        'mode': 'mock' if MOCK_MODE else 'databricks'
+        'mode': 'databricks'
     })
 
 
 @app.route('/api/test-connection', methods=['GET'])
 def test_databricks_connection():
     """Test Databricks connection endpoint."""
-    if MOCK_MODE:
-        return jsonify({
-            'status': 'success',
-            'message': 'Running in mock mode - Databricks connection bypassed',
-            'mode': 'mock'
-        })
     
     try:
         is_connected = databricks_client.test_connection()
@@ -173,18 +76,9 @@ def test_databricks_connection():
 @app.route('/api/hierarchy_data', methods=['GET'])
 def get_hierarchy_data():
     """
-    Fetch hierarchy data from Databricks or return mock data.
+    Fetch hierarchy data from Databricks.
     Returns the same structure as hierarchyData.json for compatibility.
     """
-    if MOCK_MODE:
-        logger.info("Returning mock hierarchy data")
-        return jsonify({
-            'status': 'success',
-            'data': MOCK_HIERARCHY_DATA,
-            'count': len(MOCK_HIERARCHY_DATA),
-            'mode': 'mock'
-        })
-    
     try:
         logger.info("Fetching hierarchy data from Databricks...")
         
@@ -220,18 +114,9 @@ def get_hierarchy_data():
 @app.route('/api/investment_data', methods=['GET'])
 def get_investment_data():
     """
-    Fetch investment/roadmap data from Databricks or return mock data.
+    Fetch investment/roadmap data from Databricks.
     Returns the same structure as investmentData.json for compatibility.
     """
-    if MOCK_MODE:
-        logger.info("Returning mock investment data")
-        return jsonify({
-            'status': 'success',
-            'data': MOCK_INVESTMENT_DATA,
-            'count': len(MOCK_INVESTMENT_DATA),
-            'mode': 'mock'
-        })
-    
     try:
         logger.info("Fetching investment data from Databricks...")
         
@@ -270,17 +155,6 @@ def get_portfolios():
     Fetch portfolio hierarchy data from Databricks.
     Filters for COE_ROADMAP_TYPE = 'Portfolio' only.
     """
-    if MOCK_MODE:
-        # Filter mock data for Portfolio type only
-        mock_portfolio_data = [item for item in MOCK_HIERARCHY_DATA if item.get('COE_ROADMAP_TYPE') == 'Portfolio']
-        logger.info("Returning mock portfolio data")
-        return jsonify({
-            'status': 'success',
-            'data': mock_portfolio_data,
-            'count': len(mock_portfolio_data),
-            'mode': 'mock'
-        })
-    
     try:
         logger.info("Fetching portfolio data from Databricks...")
         
@@ -312,15 +186,6 @@ def get_investments():
     Fetch investment/roadmap data from Databricks.
     Returns all roadmap elements (investments, phases, milestones).
     """
-    if MOCK_MODE:
-        logger.info("Returning mock investment data")
-        return jsonify({
-            'status': 'success',
-            'data': MOCK_INVESTMENT_DATA,
-            'count': len(MOCK_INVESTMENT_DATA),
-            'mode': 'mock'
-        })
-    
     try:
         logger.info("Fetching investment data from Databricks...")
         
@@ -351,21 +216,6 @@ def get_all_data():
     Fetch both hierarchy and investment data in a single request.
     Useful for frontend components that need both datasets.
     """
-    if MOCK_MODE:
-        logger.info("Returning all mock data")
-        return jsonify({
-            'status': 'success',
-            'data': {
-                'hierarchy': MOCK_HIERARCHY_DATA,
-                'investment': MOCK_INVESTMENT_DATA
-            },
-            'counts': {
-                'hierarchy': len(MOCK_HIERARCHY_DATA),
-                'investment': len(MOCK_INVESTMENT_DATA)
-            },
-            'mode': 'mock'
-        })
-    
     try:
         logger.info("Fetching all data from Databricks...")
         
