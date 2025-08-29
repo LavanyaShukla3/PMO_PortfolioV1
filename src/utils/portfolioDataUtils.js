@@ -189,7 +189,9 @@ export const processPortfolioDataFromAPI = async () => {
         const sortedData = finalProcessedData.sort((a, b) => {
             // First, sort by parent name to group programs together
             if (a.parentName !== b.parentName) {
-                return a.parentName.localeCompare(b.parentName);
+                const parentNameA = a.parentName || '';
+                const parentNameB = b.parentName || '';
+                return parentNameA.localeCompare(parentNameB);
             }
             // Within the same program, put the program itself first
             if (a.isProgram && !b.isProgram) return -1;

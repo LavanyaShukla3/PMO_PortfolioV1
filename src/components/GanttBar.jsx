@@ -70,6 +70,7 @@ const GanttBar = ({
     startX,
     label,
     status,
+    color, // Phase color override
     milestones = [],
     onBarClick,
     isMobile = false,
@@ -77,11 +78,20 @@ const GanttBar = ({
     touchTargetSize = 24,
     zoomLevel = 1.0
 }) => {
-    const barColor = statusColors[status] || statusColors.Grey;
+    // Use provided color first, then status color fallback
+    const barColor = color || statusColors[status] || statusColors.Grey;
+    
+    // Ensure label is always a string
+    const safeLabel = label || data?.name || data?.TASK_NAME || 'Unnamed Task';
 
     // Responsive text wrapping for long labels
-    const maxWidth = isMobile ? 120 : 180; // Responsive max width
-    const wrapText = (text, maxWidth = maxWidth) => {
+    const maxTextWidth = isMobile ? 120 : 180; // Responsive max width
+    const wrapText = (text, maxWidth = maxTextWidth) => {
+        // Handle undefined, null, or non-string text
+        if (!text || typeof text !== 'string') {
+            return [''];
+        }
+        
         const words = text.split(' ');
         let lines = [];
         let currentLine = '';
@@ -103,7 +113,7 @@ const GanttBar = ({
         return lines;
     };
 
-    const labelLines = wrapText(label);
+    const labelLines = wrapText(safeLabel);
     const lineHeight = isMobile ? 14 : 16; // Responsive line height
     
     return (
@@ -120,7 +130,7 @@ const GanttBar = ({
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
                 onClick={() => onBarClick?.(data)}
             >
-                <title>{label}</title>
+                <title>{safeLabel}</title>
             </rect>
             
             {/* Milestones */}

@@ -150,7 +150,9 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                 if (sortOrderA !== sortOrderB) {
                     return sortOrderA - sortOrderB;
                 }
-                return a.name.localeCompare(b.name);
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return nameA.localeCompare(nameB);
             }
             
             // If one is a program and other is not, check if they're related
@@ -160,7 +162,9 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     return -1; // a (program) comes before b (child)
                 }
                 // Otherwise sort by sortOrder/name
-                return (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return (a.sortOrder || 0) - (b.sortOrder || 0) || nameA.localeCompare(nameB);
             }
             
             if (!a.isProgram && b.isProgram) {
@@ -169,13 +173,17 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     return 1; // b (program) comes before a (child)
                 }
                 // Otherwise sort by sortOrder/name
-                return (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return (a.sortOrder || 0) - (b.sortOrder || 0) || nameA.localeCompare(nameB);
             }
             
             // Both are children - group them by their parent program
             if (a.parentId !== b.parentId) {
                 // Different parents - sort by parent program order
-                return a.parentId.localeCompare(b.parentId);
+                const parentIdA = a.parentId || '';
+                const parentIdB = b.parentId || '';
+                return parentIdA.localeCompare(parentIdB);
             }
             
             // Same parent - sort by sortOrder then name
@@ -184,7 +192,9 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
             if (sortOrderA !== sortOrderB) {
                 return sortOrderA - sortOrderB;
             }
-            return a.name.localeCompare(b.name);
+            const nameA = a.name || '';
+            const nameB = b.name || '';
+            return nameA.localeCompare(nameB);
         });
         
         console.log('✅ Successfully processed', sortedData.length, 'program items from API');
@@ -204,10 +214,109 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
 // Export the program function
 export const processProgramData = processProgramDataFromAPI;
 
-export const processSubProgramData = () => {
-    console.warn('processSubProgramData not implemented yet - please use SubProgram view after migration');
-    return [];
+// API function to fetch unified backend data and process for sub-program view
+const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
+    try {
+        console.log('🚀 Loading sub-program data from backend API...');
+        
+        // Fetch unified dataset from backend
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        if (result.status !== 'success') {
+            throw new Error(result.message || 'Failed to fetch unified roadmap data');
+        }
+        
+        // Extract both hierarchy and investment data from structured response
+        const hierarchyData = result.data.hierarchy;
+        const investmentData = result.data.investment;
+        console.log('📊 Raw hierarchy data loaded:', hierarchyData.length, 'records');
+        console.log('📊 Raw investment data loaded:', investmentData.length, 'records');
+
+        // Filter hierarchy for SubProgram data (note: 'Sub-Program' with hyphen in actual data)
+        const subProgramTypeData = hierarchyData.filter(item => 
+            item.COE_ROADMAP_TYPE === 'Sub-Program'
+        );
+        console.log('🎯 Filtered sub-program data:', subProgramTypeData.length, 'records');
+
+        // Build simplified data structure for SubProgramGanttChart component
+        const projects = [];
+        const milestones = [];
+
+        // Process each sub-program
+        subProgramTypeData.forEach(subProgram => {
+            const projectId = subProgram.CHILD_ID;
+            
+            // Find investment data for this sub-program
+            const projectInvestments = investmentData.filter(inv => 
+                inv.INV_EXT_ID === projectId
+            );
+            
+            if (projectInvestments.length > 0) {
+                // Get basic project info
+                const projectInfo = projectInvestments.find(inv => inv.ROADMAP_ELEMENT === 'Investment') || projectInvestments[0];
+                
+                // Get phase data
+                const phaseData = projectInvestments.filter(inv => 
+                    inv.ROADMAP_ELEMENT === 'Phases' && inv.TASK_NAME
+                );
+                
+                // Get milestone data (SG3 milestones)
+                const milestoneData = projectInvestments.filter(inv => 
+                    (inv.ROADMAP_ELEMENT === 'Milestones - Other' || inv.ROADMAP_ELEMENT === 'Milestones - Deployment') &&
+                    inv.TASK_NAME?.toLowerCase().includes('sg3')
+                );
+                
+                // Add to projects array
+                projects.push({
+                    PROJECT_ID: projectId,
+                    PROJECT_NAME: projectInfo.INVESTMENT_NAME || subProgram.CHILD_NAME,
+                    START_DATE: projectInfo.TASK_START,
+                    END_DATE: projectInfo.TASK_FINISH,
+                    STATUS: projectInfo.INV_OVERALL_STATUS,
+                    isSubProgram: true,
+                    phaseData: phaseData,
+                    milestones: milestoneData
+                });
+                
+                // Add milestones to separate milestones array
+                milestoneData.forEach(milestone => {
+                    milestones.push({
+                        PROJECT_ID: projectId,
+                        MILESTONE_DATE: milestone.TASK_START,
+                        MILESTONE_TYPE: 'SG3',
+                        MILESTONE_NAME: milestone.TASK_NAME,
+                        MILESTONE_STATUS: milestone.MILESTONE_STATUS
+                    });
+                });
+            }
+        });
+        
+        console.log('✅ Processed data:', {
+            projects: projects.length,
+            milestones: milestones.length
+        });
+        
+        return { projects, milestones };
+        
+        // If no Sub-Program hierarchy found, return empty structure
+        if (subProgramTypeData.length === 0) {
+            console.log('⚠️ No Sub-Program hierarchy found');
+            return { projects: [], milestones: [] };
+        }
+
+        return { projects, milestones };
+        
+    } catch (error) {
+        console.error('❌ Failed to load sub-program data:', error);
+        throw error;
+    }
 };
+
+export const processSubProgramData = processSubProgramDataFromAPI;
 
 export const processRegionData = () => {
     console.warn('processRegionData not implemented yet - please use Region view after migration');

@@ -167,7 +167,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
     return processedMilestones.sort((a, b) => a.date - b.date);
 };
 
-const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio, onDrillToSubProgram }) => {
+const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackToPortfolio, onDrillToSubProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('All');
@@ -226,15 +226,15 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 setLoading(true);
                 setError(null);
                 console.log('🚀 Loading program data from backend API...');
-                console.log('🔍 Selected Portfolio ID:', selectedProjectId);
-                console.log('🔍 Selected Portfolio Name:', selectedProjectName);
+                console.log('🔍 Selected Portfolio ID:', selectedPortfolioId);
+                console.log('🔍 Selected Portfolio Name:', selectedPortfolioName);
                 
-                const data = await processProgramData(selectedProjectId);
+                const data = await processProgramData(selectedPortfolioId);
                 setProcessedData(data);
                 setFilteredData(data);
                 
                 console.log(`✅ Successfully loaded ${data.length} program items from API`);
-                console.log('🔍 Filtered for selected project ID:', selectedProjectId);
+                console.log('🔍 Filtered for selected portfolio ID:', selectedPortfolioId);
                 console.log('📊 Program data preview:', data.slice(0, 3));
 
                 // Initial scroll to show June 2025 to June 2026 (responsive months)
@@ -262,7 +262,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
         };
 
         loadData();
-    }, [selectedProjectId, responsiveConstants.MONTH_WIDTH]);
+    }, [selectedPortfolioId, responsiveConstants.MONTH_WIDTH]);
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -447,10 +447,10 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                 ← Back to Portfolio
                             </button>
                         )}
-                        {selectedProjectName ? (
+                        {selectedPortfolioName ? (
                             <>
                                 <span className="text-gray-400">/</span>
-                                <span className="font-medium">{selectedProjectName}</span>
+                                <span className="font-medium">{selectedPortfolioName}</span>
                             </>
                         ) : (
                             <>

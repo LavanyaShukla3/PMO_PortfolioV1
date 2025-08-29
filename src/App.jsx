@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import PortfolioGanttChart from './pages/PortfolioGanttChart';
 import ProgramGanttChart from './pages/ProgramGanttChart';
-import SubProgramGanttChart from './pages/SubProgramGanttChart';
+import SubProgramGanttChart from './pages/SubProgramGanttChartFull';
 import RegionRoadMap from './pages/RegionRoadMap';
 import { validateApiData } from './utils/apiValidation';
 import './App.css';
 
 function App() {
-    const [currentView, setCurrentView] = useState('Portfolio');
+    const [currentView, setCurrentView] = useState('SubProgram'); // Start directly on SubProgram test
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState('');
     const [selectedSubProgramId, setSelectedSubProgramId] = useState(null);
@@ -155,7 +155,12 @@ function App() {
                         <SubProgramGanttChart
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
-                            selectedProgramName={selectedProjectName} // Task 1: Pass program name for breadcrumb
+                            selectedProgramName={selectedProjectName} // Pass program name for breadcrumb
+                            onNavigateUp={() => {
+                                setCurrentView('Program');
+                                setSelectedSubProgramId(null);
+                                setSelectedSubProgramName('');
+                            }}
                             onBackToProgram={() => {
                                 setCurrentView('Program');
                                 setSelectedSubProgramId(null);
