@@ -150,9 +150,7 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                 if (sortOrderA !== sortOrderB) {
                     return sortOrderA - sortOrderB;
                 }
-                const nameA = a.name || '';
-                const nameB = b.name || '';
-                return nameA.localeCompare(nameB);
+                return a.name.localeCompare(b.name);
             }
             
             // If one is a program and other is not, check if they're related
@@ -162,9 +160,7 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     return -1; // a (program) comes before b (child)
                 }
                 // Otherwise sort by sortOrder/name
-                const nameA = a.name || '';
-                const nameB = b.name || '';
-                return (a.sortOrder || 0) - (b.sortOrder || 0) || nameA.localeCompare(nameB);
+                return (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
             }
             
             if (!a.isProgram && b.isProgram) {
@@ -173,17 +169,13 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     return 1; // b (program) comes before a (child)
                 }
                 // Otherwise sort by sortOrder/name
-                const nameA = a.name || '';
-                const nameB = b.name || '';
-                return (a.sortOrder || 0) - (b.sortOrder || 0) || nameA.localeCompare(nameB);
+                return (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
             }
             
             // Both are children - group them by their parent program
             if (a.parentId !== b.parentId) {
                 // Different parents - sort by parent program order
-                const parentIdA = a.parentId || '';
-                const parentIdB = b.parentId || '';
-                return parentIdA.localeCompare(parentIdB);
+                return a.parentId.localeCompare(b.parentId);
             }
             
             // Same parent - sort by sortOrder then name
@@ -192,9 +184,7 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
             if (sortOrderA !== sortOrderB) {
                 return sortOrderA - sortOrderB;
             }
-            const nameA = a.name || '';
-            const nameB = b.name || '';
-            return nameA.localeCompare(nameB);
+            return a.name.localeCompare(b.name);
         });
         
         console.log('✅ Successfully processed', sortedData.length, 'program items from API');
