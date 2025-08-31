@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
-import { processPortfolioDataFromAPI } from '../utils/portfolioDataUtils';
+import { processPortfolioData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -220,46 +220,62 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     // Load data from API
     useEffect(() => {
+        let isCurrentRequest = true; // Track if this effect is still current
+        
         const loadData = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 console.log('🚀 Loading portfolio data from backend API...');
                 
-                const data = await processPortfolioDataFromAPI();
-                setProcessedData(data);
-                setFilteredData(data);
+                const data = await processPortfolioData();
                 
-                console.log(`✅ Successfully loaded ${data.length} portfolio items from API`);
+                // Only update state if this is still the current request
+                if (isCurrentRequest) {
+                    setProcessedData(data);
+                    setFilteredData(data);
+                    console.log(`✅ Successfully loaded ${data.length} portfolio items from API`);
 
-                // Initial scroll to show June 2025 to June 2026 (responsive months)
-                setTimeout(() => {
-                    if (timelineScrollRef.current) {
-                        // Calculate scroll position to show June 2025 (current month - 2)
-                        const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
-                        const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+                    // Initial scroll to show June 2025 to June 2026 (responsive months)
+                    setTimeout(() => {
+                        if (timelineScrollRef.current) {
+                            // Calculate scroll position to show June 2025 (current month - 2)
+                            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
+                            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
 
-                        console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
-                        console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
-                        console.log('🔍 Responsive constants:', responsiveConstants);
+                            console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
+                            console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
+                            console.log('🔍 Responsive constants:', responsiveConstants);
 
-                        timelineScrollRef.current.scrollLeft = scrollPosition;
-                        // Sync gantt scroll position
-                        if (ganttScrollRef.current) {
-                            ganttScrollRef.current.scrollLeft = scrollPosition;
+                            timelineScrollRef.current.scrollLeft = scrollPosition;
+                            // Sync gantt scroll position
+                            if (ganttScrollRef.current) {
+                                ganttScrollRef.current.scrollLeft = scrollPosition;
+                            }
                         }
-                    }
-                }, 100);
+                    }, 100);
+                } else {
+                    console.log('⏸️ Discarding stale API response');
+                }
             } catch (err) {
-                console.error('❌ Failed to load portfolio data from API:', err);
-                setError(err.message);
+                if (isCurrentRequest) {
+                    console.error('❌ Failed to load portfolio data from API:', err);
+                    setError(err.message);
+                }
             } finally {
-                setLoading(false);
+                if (isCurrentRequest) {
+                    setLoading(false);
+                }
             }
         };
 
         loadData();
-    }, [responsiveConstants.MONTH_WIDTH]);
+        
+        // Cleanup function to cancel stale requests
+        return () => {
+            isCurrentRequest = false;
+        };
+    }, []); // Remove responsiveConstants dependency to prevent re-runs
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -306,10 +322,10 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const getScaledFilteredData = () => {
         const projectScale = responsiveConstants.PROJECT_SCALE;
         if (projectScale >= 1.0) {
-            // Zooming out - show more projects (no change needed, show all)
+            // Normal or zoomed out - show all or more projects
             return filteredData;
         } else {
-            // Zooming in - show fewer projects
+            // Zoomed in (PROJECT_SCALE < 1.0) - show fewer projects
             const targetCount = Math.max(1, Math.round(filteredData.length * projectScale));
             return filteredData.slice(0, targetCount);
         }
@@ -601,6 +617,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             const yOffset = scaledData
                                 .slice(0, index)
                                 .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
+                            
                             return (
                                 <div
                                     key={project.id}
@@ -611,26 +628,16 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
                                         fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        cursor: project.isDrillable ? 'pointer' : 'default',
+                                        cursor: 'default',
                                         minHeight: responsiveConstants.TOUCH_TARGET_SIZE
-                                    }}
-                                    onClick={() => {
-                                        if (project.isDrillable && onDrillToProgram) {
-                                            onDrillToProgram(project.id, project.name);
-                                        } else {
-                                            console.log('Box height:', calculateBarHeight(project));
-                                        }
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <div className="flex flex-col justify-center">
                                             <span className="font-medium text-gray-800 pr-2" title={project.name}>
-                                                {project.name}
+                                                {project.name || `[No Name - ID: ${project.id}]`}
                                             </span>
                                         </div>
-                                        {project.isDrillable && (
-                                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">↗️</span>
-                                        )}
                                     </div>
                                 </div>
                             );
@@ -691,18 +698,9 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                             height={responsiveConstants.TOUCH_TARGET_SIZE}
                                             rx={4}
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                            className={`transition-opacity duration-150 hover:opacity-90 ${
-                                                project.isDrillable ? 'cursor-pointer' : 'cursor-default'
-                                            }`}
+                                            className="transition-opacity duration-150 hover:opacity-90 cursor-default"
                                             style={{
                                                 minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
-                                            }}
-                                            onClick={() => {
-                                                if (project.isDrillable && onDrillToProgram) {
-                                                    onDrillToProgram(project.id, project.name);
-                                                } else {
-                                                    console.log('Portfolio clicked:', project.id);
-                                                }
                                             }}
                                         />
 

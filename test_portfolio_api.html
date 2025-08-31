@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head><title>Portfolio API Test</title></head>
+<body>
+<h1>Portfolio API Test</h1>
+<div id="output">Testing...</div>
+<script>
+const testPortfolioResponse = async () => {
+    try {
+        const response = await fetch('http://localhost:5000/api/data');
+        const result = await response.json();
+        
+        const output = document.getElementById('output');
+        output.innerHTML = `
+            <p>API Status: ${result.status}</p>
+            <p>Hierarchy count: ${result.data.hierarchy.length}</p>
+            <p>Investment count: ${result.data.investment.length}</p>
+        `;
+        
+        // Test portfolio filtering (same as apiDataService.js)
+        const portfolios = result.data.hierarchy.filter(h => h.COE_ROADMAP_TYPE === 'Portfolio');
+        output.innerHTML += `<p><strong>Portfolios found: ${portfolios.length}</strong></p>`;
+        
+        if (portfolios.length > 0) {
+            // Check for PTF parent records
+            const ptfParents = result.data.hierarchy.filter(h => h.CHILD_ID && h.CHILD_ID.startsWith('PTF'));
+            output.innerHTML += `<p>PTF Parent records found: ${ptfParents.length}</p>`;
+            
+            // Test ORIGINAL parent portfolio logic (WRONG)
+            const parentPortfolios = portfolios.filter(item => 
+                item.COE_ROADMAP_PARENT_ID === item.CHILD_ID && item.COE_ROADMAP_TYPE === 'Portfolio'
+            );
+            output.innerHTML += `<p>Parent Portfolios (old logic): ${parentPortfolios.length}</p>`;
+            
+            // NEW APPROACH: Use PTF parent records as portfolios
+            if (ptfParents.length > 0) {
+                const firstPTF = ptfParents[0];
+                output.innerHTML += `<p style="color: blue;">🔍 First PTF: ${firstPTF.CHILD_ID} - ${firstPTF.CHILD_NAME} (Type: ${firstPTF.COE_ROADMAP_TYPE})</p>`;
+            
+            // NEW APPROACH: Use PTF parent records as portfolios
+            if (ptfParents.length > 0) {
+                const firstPTF = ptfParents[0];
+                output.innerHTML += `<p style="color: blue;">🔍 First PTF: ${firstPTF.CHILD_ID} - ${firstPTF.CHILD_NAME} (Type: ${firstPTF.COE_ROADMAP_TYPE})</p>`;
+                
+                // Test investment matching for PTF record
+                const investment = result.data.investment.find(inv => 
+                    inv.INV_EXT_ID === firstPTF.CHILD_ID && inv.ROADMAP_ELEMENT === 'Investment'
+                );
+                
+                if (investment) {
+                    output.innerHTML += `<p style="color: green;">✅ PTF Investment found: ${investment.INVESTMENT_NAME}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: red;">❌ No investment found for PTF ${firstPTF.CHILD_ID}</p>`;
+                }
+                
+                // Test children finding for PTF
+                const children = result.data.hierarchy.filter(item => 
+                    item.COE_ROADMAP_PARENT_ID === firstPTF.CHILD_ID && 
+                    item.CHILD_ID !== firstPTF.CHILD_ID
+                );
+                output.innerHTML += `<p>PTF Children found: ${children.length}</p>`;
+            }
+            
+            if (parentPortfolios.length > 0) {
+                const firstPortfolio = parentPortfolios[0];
+                output.innerHTML += `<p>First Portfolio: ${firstPortfolio.CHILD_ID} - ${firstPortfolio.CHILD_NAME}</p>`;
+                
+                // Test investment matching
+                const investment = result.data.investment.find(inv => 
+                    inv.INV_EXT_ID === firstPortfolio.CHILD_ID && inv.ROADMAP_ELEMENT === 'Investment'
+                );
+                
+                if (investment) {
+                    output.innerHTML += `<p style="color: green;">✅ Investment found: ${investment.INVESTMENT_NAME}</p>`;
+                    output.innerHTML += `<p>Start: ${investment.TASK_START}, End: ${investment.TASK_FINISH}, Status: ${investment.INV_OVERALL_STATUS}</p>`;
+                } else {
+                    output.innerHTML += `<p style="color: red;">❌ No investment found for ${firstPortfolio.CHILD_ID}</p>`;
+                }
+                
+                // Test children finding
+                const children = result.data.hierarchy.filter(item => 
+                    item.COE_ROADMAP_PARENT_ID === firstPortfolio.CHILD_ID && 
+                    item.CHILD_ID !== firstPortfolio.CHILD_ID
+                );
+                output.innerHTML += `<p>Children found: ${children.length}</p>`;
+                if (children.length > 0) {
+                    output.innerHTML += `<p>First child: ${children[0].CHILD_ID} - ${children[0].CHILD_NAME} (${children[0].COE_ROADMAP_TYPE})</p>`;
+                }
+            }
+            
+            // Show all portfolios for debugging
+            output.innerHTML += `<h3>All Portfolios:</h3>`;
+            portfolios.slice(0, 10).forEach(p => {
+                output.innerHTML += `<p style="margin-left: 20px;">${p.CHILD_ID} - ${p.CHILD_NAME} (Parent: ${p.COE_ROADMAP_PARENT_ID})</p>`;
+            });
+        }
+        
+    } catch (error) {
+        document.getElementById('output').innerHTML = 'Error: ' + error.message;
+    }
+};
+testPortfolioResponse();
+</script>
+</body>
+</html>

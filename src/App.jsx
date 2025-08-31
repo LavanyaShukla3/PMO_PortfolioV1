@@ -7,7 +7,7 @@ import { validateApiData } from './utils/apiValidation';
 import './App.css';
 
 function App() {
-    const [currentView, setCurrentView] = useState('Portfolio'); // Start with Portfolio view
+    const [currentView, setCurrentView] = useState('Portfolio'); // Start on Portfolio to test fixes
     const [selectedProjectId, setSelectedProjectId] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState('');
     const [selectedSubProgramId, setSelectedSubProgramId] = useState(null);

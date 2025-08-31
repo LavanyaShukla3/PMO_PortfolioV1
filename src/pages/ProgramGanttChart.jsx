@@ -167,7 +167,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
     return processedMilestones.sort((a, b) => a.date - b.date);
 };
 
-const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackToPortfolio, onDrillToSubProgram }) => {
+const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPortfolio, onDrillToSubProgram }) => {
     const [processedData, setProcessedData] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [selectedProgram, setSelectedProgram] = useState('All');
@@ -226,15 +226,15 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                 setLoading(true);
                 setError(null);
                 console.log('🚀 Loading program data from backend API...');
-                console.log('🔍 Selected Portfolio ID:', selectedPortfolioId);
-                console.log('🔍 Selected Portfolio Name:', selectedPortfolioName);
+                console.log('🔍 Selected Portfolio ID:', selectedProjectId);
+                console.log('🔍 Selected Portfolio Name:', selectedProjectName);
                 
-                const data = await processProgramData(selectedPortfolioId);
+                const data = await processProgramData(selectedProjectId);
                 setProcessedData(data);
                 setFilteredData(data);
                 
                 console.log(`✅ Successfully loaded ${data.length} program items from API`);
-                console.log('🔍 Filtered for selected portfolio ID:', selectedPortfolioId);
+                console.log('🔍 Filtered for selected project ID:', selectedProjectId);
                 console.log('📊 Program data preview:', data.slice(0, 3));
 
                 // Initial scroll to show June 2025 to June 2026 (responsive months)
@@ -262,7 +262,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
         };
 
         loadData();
-    }, [selectedPortfolioId, responsiveConstants.MONTH_WIDTH]);
+    }, [selectedProjectId, responsiveConstants.MONTH_WIDTH]);
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -447,10 +447,10 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                 ← Back to Portfolio
                             </button>
                         )}
-                        {selectedPortfolioName ? (
+                        {selectedProjectName ? (
                             <>
                                 <span className="text-gray-400">/</span>
-                                <span className="font-medium">{selectedPortfolioName}</span>
+                                <span className="font-medium">{selectedProjectName}</span>
                             </>
                         ) : (
                             <>
@@ -657,18 +657,11 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
                                         fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        cursor: project.isDrillable ? 'pointer' : 'default',
+                                        cursor: 'default',
                                         minHeight: responsiveConstants.TOUCH_TARGET_SIZE,
                                         background: isProgram ? '#f0f9ff' : 'transparent',
                                         fontWeight: isProgram ? 600 : 'normal',
                                         textTransform: isProgram ? 'uppercase' : 'none',
-                                    }}
-                                    onClick={() => {
-                                        if (project.isDrillable && onDrillToSubProgram) {
-                                            onDrillToSubProgram(project.id, project.name);
-                                        } else {
-                                            console.log('Program clicked:', project.id, 'isDrillable:', project.isDrillable);
-                                        }
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
@@ -677,9 +670,6 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                                 {isProgram ? '📌 ' : ''}{project.name}
                                             </span>
                                         </div>
-                                        {project.isDrillable && (
-                                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">↗️</span>
-                                        )}
                                     </div>
                                 </div>
                             );
@@ -766,18 +756,9 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                             height={responsiveConstants.TOUCH_TARGET_SIZE}
                                             rx={4}
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                            className={`transition-opacity duration-150 hover:opacity-90 ${
-                                                project.isDrillable ? 'cursor-pointer' : 'cursor-default'
-                                            }`}
+                                            className="transition-opacity duration-150 hover:opacity-90 cursor-default"
                                             style={{
                                                 minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
-                                            }}
-                                            onClick={() => {
-                                                if (project.isDrillable && onDrillToSubProgram) {
-                                                    onDrillToSubProgram(project.id, project.name);
-                                                } else {
-                                                    console.log('Program bar clicked:', project.id, 'isDrillable:', project.isDrillable);
-                                                }
                                             }}
                                         />
 

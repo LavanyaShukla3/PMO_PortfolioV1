@@ -1,9 +1,127 @@
 // Legacy service file - functions moved to utils folder
 // This file is kept for backward compatibility with other components
 
-import { processPortfolioDataFromAPI } from '../utils/portfolioDataUtils';
+// API function to fetch unified backend data and process for portfolio view
+const processPortfolioDataFromAPI = async () => {
+    try {
+        console.log('🚀 Loading portfolio data from backend API...');
+        
+        // Fetch unified dataset from backend
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        if (result.status !== 'success') {
+            throw new Error(result.message || 'Failed to fetch unified roadmap data');
+        }
+        
+        // Extract both hierarchy and investment data from structured response
+        const hierarchyData = result.data.hierarchy;
+        const investmentData = result.data.investment;
+        console.log('📊 Raw hierarchy data loaded:', hierarchyData.length, 'records');
+        console.log('📊 Raw investment data loaded:', investmentData.length, 'records');
 
-// Export the new portfolio function for compatibility
+        // CORRECT APPROACH: Group Portfolio records by their parent PTF IDs
+        // Portfolio structure: Portfolio records (PROG000xxx) are grouped by COE_ROADMAP_PARENT_ID (PTF000xxx)
+        const portfolioRecords = hierarchyData.filter(item => 
+            item.COE_ROADMAP_TYPE === 'Portfolio'
+        );
+        console.log('🎯 Portfolio records found:', portfolioRecords.length, 'records');
+        console.log('🔍 Sample portfolio records:', portfolioRecords.slice(0, 3).map(p => ({
+            id: p.CHILD_ID,
+            name: p.CHILD_NAME,
+            parentId: p.COE_ROADMAP_PARENT_ID,
+            type: p.COE_ROADMAP_TYPE
+        })));
+
+        // Group portfolios by their parent PTF ID
+        const portfolioGroups = {};
+        portfolioRecords.forEach(portfolio => {
+            const ptfId = portfolio.COE_ROADMAP_PARENT_ID;
+            if (!portfolioGroups[ptfId]) {
+                portfolioGroups[ptfId] = [];
+            }
+            portfolioGroups[ptfId].push(portfolio);
+        });
+        
+        const ptfIds = Object.keys(portfolioGroups);
+        console.log('🔍 Portfolio groups (PTF IDs):', ptfIds.length, 'groups');
+        console.log('🔍 PTF IDs:', ptfIds);
+        
+        // Initialize processed data array
+        const processedData = [];
+        
+        // Process each PTF group as a portfolio
+        for (const ptfId of ptfIds) {
+            const portfoliosInGroup = portfolioGroups[ptfId];
+            console.log(`🔍 Processing PTF group: ${ptfId} with ${portfoliosInGroup.length} portfolios`);
+            
+            // Process each portfolio in this PTF group
+            for (const portfolio of portfoliosInGroup) {
+                console.log('🔍 Processing portfolio:', portfolio.CHILD_ID, '-', portfolio.CHILD_NAME);
+                
+                // Find investment data for this portfolio
+                const investment = investmentData.find(inv => 
+                    inv.INV_EXT_ID === portfolio.CHILD_ID && inv.ROADMAP_ELEMENT === 'Investment'
+                );
+                
+                if (investment) {
+                    console.log('✅ Found investment for portfolio:', portfolio.CHILD_ID, '-', investment.INVESTMENT_NAME);
+                } else {
+                    console.log('❌ No investment record for portfolio:', portfolio.CHILD_ID, '-', portfolio.CHILD_NAME);
+                    // Still process portfolio with placeholder data - show portfolio name even without investment
+                }
+                // Find milestones for this portfolio
+                const milestones = investmentData
+                    .filter(inv => 
+                        inv.INV_EXT_ID === portfolio.CHILD_ID && 
+                        inv.ROADMAP_ELEMENT && 
+                        inv.ROADMAP_ELEMENT.includes('Milestones')
+                    )
+                    .map(milestone => ({
+                        date: milestone.TASK_START,
+                        status: milestone.MILESTONE_STATUS,
+                        label: milestone.TASK_NAME,
+                        isSG3: milestone.ROADMAP_ELEMENT.includes('SG3') || milestone.TASK_NAME.includes('SG3')
+                    }));
+
+                // Process portfolio item (with or without investment data)
+                const portfolioData = {
+                    id: portfolio.CHILD_ID,
+                    name: investment ? investment.INVESTMENT_NAME : portfolio.CHILD_NAME, // Use portfolio name if no investment
+                    parentId: ptfId, // Use PTF ID as parent
+                    parentName: ptfId, // PTF ID is the portfolio group name
+                    startDate: investment ? investment.TASK_START : null, // No timeline if no investment
+                    endDate: investment ? investment.TASK_FINISH : null,
+                    status: investment ? investment.INV_OVERALL_STATUS : 'No Investment Data',
+                    sortOrder: investment ? (investment.SortOrder || 0) : 0,
+                    isProgram: true, // Keep consistent with program data structure
+                    milestones,
+                    hasInvestmentData: !!investment // Flag to indicate if we have timeline data
+                };
+                
+                processedData.push(portfolioData);
+                console.log('✅ Added portfolio item:', portfolioData.id, '-', portfolioData.name, investment ? '(with investment)' : '(name only)');
+            }
+        }
+        
+        console.log('✅ Successfully processed', processedData.length, 'portfolio items from API');
+        console.log('🔍 First few items:', processedData.slice(0, 5).map(item => ({
+            name: item.name,
+            isProgram: item.isProgram,
+            parentId: item.parentId
+        })));
+        return processedData;
+        
+    } catch (error) {
+        console.error('❌ Failed to load portfolio data:', error);
+        throw error;
+    }
+};
+
+// Export the portfolio function for compatibility
 export const processPortfolioData = processPortfolioDataFromAPI;
 
 // API function to fetch unified backend data and process for program view
@@ -72,9 +190,6 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
             item.COE_ROADMAP_PARENT_ID === item.CHILD_ID && item.COE_ROADMAP_TYPE === 'Program'
         );
         
-        // Build parent-child lookup for isDrillable logic
-        const parentIdSet = new Set(filteredData.map(item => item.COE_ROADMAP_PARENT_ID).filter(Boolean));
-        
         for (const parentProgram of parentPrograms) {
             // Find investment data for this program
             const investment = investmentData.find(inv => 
@@ -106,7 +221,6 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                 status: investment ? investment.INV_OVERALL_STATUS : parentProgram.COE_ROADMAP_STATUS,
                 sortOrder: investment ? investment.SortOrder || 0 : 0,
                 isProgram: true,
-                isDrillable: parentIdSet.has(parentProgram.CHILD_ID), // Has children if CHILD_ID is referenced as parent
                 milestones
             };
             
@@ -148,7 +262,6 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     status: childInvestment ? childInvestment.INV_OVERALL_STATUS : child.COE_ROADMAP_STATUS,
                     sortOrder: childInvestment ? childInvestment.SortOrder || 0 : 0,
                     isProgram: false,
-                    isDrillable: parentIdSet.has(child.CHILD_ID), // Check if this child has its own children
                     milestones: childMilestones
                 };
                 

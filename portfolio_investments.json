@@ -1,0 +1,72 @@
+﻿[
+    {
+        "INV_EXT_ID":  "PR00005515",
+        "INVESTMENT_NAME":  "E2E Process - Hire Someone and Job Evaluation Process",
+        "TASK_START":  "Mon, 27 May 2024 00:00:00 GMT",
+        "TASK_FINISH":  "Mon, 17 Mar 2025 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Green"
+    },
+    {
+        "INV_EXT_ID":  "PROG000328",
+        "INVESTMENT_NAME":  "Account IQ",
+        "TASK_START":  "Sun, 30 Mar 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Tue, 29 Jun 2027 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Green"
+    },
+    {
+        "INV_EXT_ID":  "PROG000184",
+        "INVESTMENT_NAME":  "Requisition To Pay",
+        "TASK_START":  "Mon, 01 Jul 2024 00:00:00 GMT",
+        "TASK_FINISH":  "Tue, 01 Dec 2026 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Yellow"
+    },
+    {
+        "INV_EXT_ID":  "PROG000349",
+        "INVESTMENT_NAME":  "GFT Agriculture Digitial Insights \u0026 Intelligence",
+        "TASK_START":  "Mon, 23 Jun 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Tue, 30 Dec 2025 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Yellow"
+    },
+    {
+        "INV_EXT_ID":  "PROG000350",
+        "INVESTMENT_NAME":  "GFT Agriculture E2E Data Management",
+        "TASK_START":  "Sat, 15 Mar 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Wed, 31 Dec 2025 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Yellow"
+    },
+    {
+        "INV_EXT_ID":  "PR00007280",
+        "INVESTMENT_NAME":  "Order Management",
+        "TASK_START":  "Sat, 01 Mar 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Sat, 01 Nov 2025 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Yellow"
+    },
+    {
+        "INV_EXT_ID":  "PROG000300",
+        "INVESTMENT_NAME":  "GFT R\u0026D",
+        "TASK_START":  "Mon, 01 Jan 2024 00:00:00 GMT",
+        "TASK_FINISH":  "Fri, 29 Dec 2028 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Green"
+    },
+    {
+        "INV_EXT_ID":  "PROG000308",
+        "INVESTMENT_NAME":  "[PLACEHOLDER] Org Effectiveness",
+        "TASK_START":  "Sun, 09 Feb 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Wed, 01 Oct 2025 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Grey"
+    },
+    {
+        "INV_EXT_ID":  "PROG000353",
+        "INVESTMENT_NAME":  "GFT Sustainability Digital \u0026 Capability Development",
+        "TASK_START":  "Wed, 02 Apr 2025 00:00:00 GMT",
+        "TASK_FINISH":  "Tue, 05 May 2026 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Green"
+    },
+    {
+        "INV_EXT_ID":  "PROG000358",
+        "INVESTMENT_NAME":  "Commercial Brain",
+        "TASK_START":  "Mon, 24 Aug 2026 00:00:00 GMT",
+        "TASK_FINISH":  "Thu, 26 Nov 2026 00:00:00 GMT",
+        "INV_OVERALL_STATUS":  "Grey"
+    }
+]
