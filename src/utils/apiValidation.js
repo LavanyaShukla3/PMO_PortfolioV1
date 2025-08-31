@@ -46,8 +46,7 @@ export const validateApiData = async () => {
     
     const endpoints = [
         { url: '/api/health', name: 'Health Check' },
-        { url: '/api/portfolios', name: 'Portfolio Data' },
-        { url: '/api/investments', name: 'Investment Data' }
+        { url: '/api/data', name: 'Main Data Endpoint' }
     ];
     
     const results = [];
@@ -63,6 +62,7 @@ export const validateApiData = async () => {
     if (allSuccess) {
         // Get mode from health check
         const healthResult = results.find(r => r.name === 'Health Check');
+        const dataResult = results.find(r => r.name === 'Main Data Endpoint');
         const mode = healthResult?.data?.mode || 'unknown';
         
         return {
@@ -70,8 +70,8 @@ export const validateApiData = async () => {
             errors: [],
             mode: mode,
             counts: {
-                portfolios: results.find(r => r.name === 'Portfolio Data')?.data?.count || 0,
-                investments: results.find(r => r.name === 'Investment Data')?.data?.count || 0
+                portfolios: dataResult?.data?.counts?.hierarchy || 0,
+                investments: dataResult?.data?.counts?.investment || 0
             }
         };
     } else {

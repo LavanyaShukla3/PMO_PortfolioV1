@@ -37,6 +37,14 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
         // If a specific portfolio is selected, filter to show only its programs
         let filteredData = programTypeData;
         if (selectedPortfolioId) {
+            console.log('🔍 Filtering programs for selected portfolio ID:', selectedPortfolioId);
+            console.log('🔍 Available program data before filtering:', programTypeData.map(p => ({
+                id: p.CHILD_ID,
+                name: p.CHILD_NAME,
+                parentId: p.COE_ROADMAP_PARENT_ID,
+                type: p.COE_ROADMAP_TYPE
+            })));
+            
             // Find programs that belong to the selected portfolio
             filteredData = programTypeData.filter(item => 
                 item.COE_ROADMAP_PARENT_ID === selectedPortfolioId ||
@@ -46,6 +54,14 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                 )
             );
             console.log('🔍 Filtered for portfolio', selectedPortfolioId, ':', filteredData.length, 'records');
+            console.log('🔍 Filtered results:', filteredData.map(p => ({
+                id: p.CHILD_ID,
+                name: p.CHILD_NAME,
+                parentId: p.COE_ROADMAP_PARENT_ID,
+                type: p.COE_ROADMAP_TYPE
+            })));
+        } else {
+            console.log('🔍 No portfolio filter applied - showing all programs');
         }
 
         // Build parent-child hierarchy

@@ -42,7 +42,8 @@ class DatabricksClient:
             self.connection = sql.connect(
                 server_hostname=self.server_hostname,
                 http_path=self.http_path,
-                access_token=self.access_token
+                access_token=self.access_token,
+                _user_agent_entry="PMO-Portfolio/1.0.0"
             )
             logger.info("Successfully connected to Databricks")
         except Exception as e:
@@ -56,12 +57,13 @@ class DatabricksClient:
             self.connection = None
             logger.info("Disconnected from Databricks")
     
-    def execute_query(self, query: str) -> List[Dict[str, Any]]:
+    def execute_query(self, query: str, timeout: int = 300) -> List[Dict[str, Any]]:
         """
         Execute a SQL query and return results as a list of dictionaries.
         
         Args:
             query (str): The SQL query to execute
+            timeout (int): Query timeout in seconds (default: 300 = 5 minutes)
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
@@ -71,6 +73,13 @@ class DatabricksClient:
         
         try:
             cursor = self.connection.cursor()
+            
+            # Add LIMIT to very long queries if not already present
+            if len(query) > 2000 and "LIMIT" not in query.upper():
+                logger.warning("Adding LIMIT 1000 to large query to prevent timeout")
+                query = query.rstrip(';') + "\nLIMIT 1000;"
+            
+            logger.info(f"Executing query (length: {len(query)} chars)")
             cursor.execute(query)
             
             # Get column names
