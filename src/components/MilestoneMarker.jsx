@@ -28,7 +28,7 @@ const MilestoneMarker = ({
     const baseSize = isMobile ? 12 : 10;
     const zoomedBaseSize = Math.round(baseSize * zoomScale);
     const size = isSG3 ? Math.round(zoomedBaseSize * 1.4) : zoomedBaseSize;
-    const yOffset = isSG3 ? (isMobile ? -8 : -7) : (isMobile ? -6 : -5);
+    const yOffset = 0; // Position milestone on the Gantt bar instead of above it
     const isComplete = complete === 'Completed';
 
     // Text wrapping logic

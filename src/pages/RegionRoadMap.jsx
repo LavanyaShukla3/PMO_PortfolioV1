@@ -863,7 +863,7 @@ const RegionRoadMap = () => {
                                                     const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                     const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                     const width = Math.max(endX - startX, 2); // Minimum 2px width
-                                                    const yPos = yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2;
+                                                    const yPos = yOffset + (projectRowHeight / 2) - (responsiveConstants.TOUCH_TARGET_SIZE / 2);
 
                                                     return (
                                                         <GanttBar
@@ -873,7 +873,6 @@ const RegionRoadMap = () => {
                                                             startX={startX}
                                                             width={width}
                                                             height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                            color="#9ca3af"
                                                             label={project.name}
                                                             status={project.status}
                                                         />
@@ -885,7 +884,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
+                                                        y={yOffset + (projectRowHeight / 2)}
                                                         complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
