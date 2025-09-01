@@ -444,12 +444,236 @@ const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
 
 export const processSubProgramData = processSubProgramDataFromAPI;
 
-export const processRegionData = () => {
-    console.warn('processRegionData not implemented yet - please use Region view after migration');
-    return [];
+/**
+ * Fetches investment data from Flask endpoint
+ * @returns {Array} Investment data from the API
+ */
+const fetchInvestmentData = async () => {
+    try {
+        console.log('🚀 Fetching investment data from /api/investments...');
+        const response = await fetch('/api/investments');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        
+        if (result.status !== 'success') {
+            throw new Error(result.message || 'Failed to fetch investment data');
+        }
+        
+        console.log('📊 Investment data loaded:', result.data.length, 'records');
+        return result.data;
+    } catch (error) {
+        console.error('❌ Failed to fetch investment data:', error);
+        throw error;
+    }
 };
 
-export const getRegionFilterOptions = () => {
-    console.warn('getRegionFilterOptions not implemented yet');
-    return [];
+/**
+ * Processes investment data for Region Roadmap
+ * @param {Object} filters - Filter criteria {region, market, function, tier}
+ * @returns {Array} Processed data ready for the Region Gantt chart
+ */
+export const processRegionData = async (filters = {}) => {
+    try {
+        console.log('🔍 Processing region data with filters:', filters);
+        
+        // Fetch investment data from API
+        const investmentData = await fetchInvestmentData();
+        
+        // 1. Filter to only show records of specific types
+        const projectData = investmentData.filter(item =>
+            ["Non-Clarity item", "Project", "Programs"].includes(item.CLRTY_INV_TYPE)
+        );
+        console.log('🎯 Filtered project data:', projectData.length, 'records');
+
+        // 2. Group all records for each project by its unique ID
+        const projectGroups = {};
+        projectData.forEach(item => {
+            if (!projectGroups[item.INV_EXT_ID]) {
+                projectGroups[item.INV_EXT_ID] = [];
+            }
+            projectGroups[item.INV_EXT_ID].push(item);
+        });
+        console.log('📊 Project groups created:', Object.keys(projectGroups).length, 'projects');
+
+        const processedProjects = [];
+
+        Object.keys(projectGroups).forEach(projectId => {
+            const projectItems = projectGroups[projectId];
+
+            // Filter out records without INV_MARKET
+            const itemsWithMarket = projectItems.filter(item => 
+                item.INV_MARKET && item.INV_MARKET.trim() !== ''
+            );
+            
+            if (itemsWithMarket.length === 0) {
+                return; // Skip projects without market data
+            }
+
+            // 3. Find the main investment record to get project metadata
+            const mainRecord = itemsWithMarket.find(item =>
+                item.ROADMAP_ELEMENT === "Investment"
+            );
+
+            if (!mainRecord) {
+                return; // Skip if no main investment record is found
+            }
+
+            // 4. Parse the market string to get region and market
+            const parseMarket = (invMarket) => {
+                if (!invMarket) return { region: '', market: '' };
+                const parts = invMarket.split('/');
+                return {
+                    region: parts[0] || '',
+                    market: parts[1] || ''
+                };
+            };
+            const { region, market } = parseMarket(mainRecord.INV_MARKET);
+
+            // 5. Apply the user-selected filters
+            if (filters.region && filters.region !== 'All' && region !== filters.region) return;
+            if (filters.market && filters.market !== 'All' && market !== filters.market) return;
+            if (filters.function && filters.function !== 'All' && mainRecord.INV_FUNCTION !== filters.function) return;
+            if (filters.tier && filters.tier !== 'All' && mainRecord.INV_TIER?.toString() !== filters.tier) return;
+
+            // --- If a project passes the filters, process its details ---
+
+            // Get phase data
+            const phaseRecords = itemsWithMarket.filter(item =>
+                item.ROADMAP_ELEMENT === "Phases" &&
+                item.TASK_NAME &&
+                ['Initiate', 'Evaluate', 'Develop', 'Deploy', 'Sustain', 'Close'].includes(item.TASK_NAME)
+            );
+
+            const isUnphased = phaseRecords.length === 0;
+            let phases = [];
+            let projectStart = mainRecord.TASK_START;
+            let projectEnd = mainRecord.TASK_FINISH;
+
+            if (!isUnphased) {
+                phases = phaseRecords
+                    .sort((a, b) => new Date(a.TASK_START) - new Date(b.TASK_START))
+                    .map(phase => ({
+                        name: phase.TASK_NAME,
+                        startDate: phase.TASK_START,
+                        endDate: phase.TASK_FINISH
+                    }));
+
+                // Recalculate overall project timeline from its phases
+                if (phases.length > 0) {
+                    projectStart = phases[0].startDate;
+                    projectEnd = phases[phases.length - 1].endDate;
+                }
+            }
+
+            // 6. Filter for SG3 milestones ONLY from Milestones - Deployment
+            const milestones = itemsWithMarket
+                .filter(item =>
+                    item.ROADMAP_ELEMENT === "Milestones - Deployment" &&
+                    item.TASK_START &&
+                    item.TASK_NAME?.toLowerCase().includes('sg3') // Only SG3 milestones
+                )
+                .map(milestone => ({
+                    date: milestone.TASK_START,
+                    status: milestone.MILESTONE_STATUS || 'Pending',
+                    label: milestone.TASK_NAME,
+                    type: milestone.ROADMAP_ELEMENT,
+                    isSG3: true // Mark as SG3
+                }))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // 7. Assemble the final, clean project object
+            processedProjects.push({
+                id: projectId,
+                name: mainRecord.INVESTMENT_NAME,
+                region,
+                market,
+                function: mainRecord.INV_FUNCTION || '',
+                tier: mainRecord.INV_TIER?.toString() || '',
+                startDate: projectStart,
+                endDate: projectEnd,
+                status: mainRecord.INV_OVERALL_STATUS,
+                isUnphased,
+                phases,
+                milestones
+            });
+        });
+
+        console.log('✅ Processed projects:', processedProjects.length, 'final projects');
+
+        // 8. Return the final list, sorted by name
+        return processedProjects.sort((a, b) => a.name.localeCompare(b.name));
+
+    } catch (error) {
+        console.error('❌ Error processing region data:', error);
+        return [];
+    }
+};
+
+/**
+ * Gets filter options for Region Roadmap
+ * @returns {Object} Available filter options {regions, markets, functions, tiers}
+ */
+export const getRegionFilterOptions = async () => {
+    try {
+        console.log('🔍 Loading region filter options...');
+        
+        // Fetch investment data from API
+        const investmentData = await fetchInvestmentData();
+        
+        // Filter to only show records of specific types with market data
+        const projectData = investmentData.filter(item =>
+            ["Non-Clarity item", "Project", "Programs"].includes(item.CLRTY_INV_TYPE) &&
+            item.ROADMAP_ELEMENT === "Investment" &&
+            item.INV_MARKET && item.INV_MARKET.trim() !== ''
+        );
+        
+        console.log('🎯 Records for filter options:', projectData.length, 'investment records');
+
+        // Extract unique values for each filter type
+        const regions = new Set();
+        const markets = new Set();
+        const functions = new Set();
+        const tiers = new Set();
+
+        projectData.forEach(item => {
+            // Parse market to get region and market
+            if (item.INV_MARKET) {
+                const parts = item.INV_MARKET.split('/');
+                const region = parts[0];
+                const market = parts[1];
+                
+                if (region) regions.add(region);
+                if (market) markets.add(market);
+            }
+            
+            if (item.INV_FUNCTION) functions.add(item.INV_FUNCTION);
+            if (item.INV_TIER) tiers.add(item.INV_TIER.toString());
+        });
+
+        const options = {
+            regions: Array.from(regions).sort(),
+            markets: Array.from(markets).sort(),
+            functions: Array.from(functions).sort(),
+            tiers: Array.from(tiers).sort()
+        };
+
+        console.log('✅ Filter options loaded:', {
+            regions: options.regions.length,
+            markets: options.markets.length,
+            functions: options.functions.length,
+            tiers: options.tiers.length
+        });
+
+        return options;
+    } catch (error) {
+        console.error('❌ Error loading region filter options:', error);
+        return {
+            regions: [],
+            markets: [],
+            functions: [],
+            tiers: []
+        };
+    }
 };

@@ -43,6 +43,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
     const [zoomLevel, setZoomLevel] = useState(1.0);
     const [selectedProgram, setSelectedProgram] = useState('All');
     const [programNames, setProgramNames] = useState(['All']);
+    const [dataVersion, setDataVersion] = useState(0);
     
     const scrollContainerRef = useRef(null);
     const headerScrollRef = useRef(null);
@@ -182,6 +183,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                 console.log('Available programs in dropdown:', sortedPrograms.slice(0, 10), '...and', sortedPrograms.length - 10, 'more');
                 
                 setData(combinedData);
+                setDataVersion(prev => prev + 1); // Increment data version to force re-render
                 
             } catch (err) {
                 console.error('❌ Failed to load sub-program data from API:', err);
@@ -200,6 +202,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
 
     const handleProgramChange = (e) => {
         setSelectedProgram(e.target.value);
+        setDataVersion(prev => prev + 1); // Increment data version to force re-render
     };
 
     const handleScroll = (e) => {
