@@ -3,6 +3,11 @@ import MilestoneMarker from './MilestoneMarker';
 
 // Helper function to calculate bar height (copied from PortfolioGanttChart)
 const calculateBarHeight = (project) => {
+    // Handle undefined or invalid project data
+    if (!project || !project.name) {
+        return 50; // Default height
+    }
+    
     const textLines = Math.ceil(project.name.length / 30);
     const hasMilestones = project.milestones && project.milestones.length > 0;
     return 30 + ((textLines - 1) * 12) + (hasMilestones ? 20 : 0); // Using the same constants as parent
@@ -119,13 +124,13 @@ const GanttBar = ({
     return (
         <g className="gantt-bar">
             
-            {/* Main bar - fully responsive height with milestone alignment */}
+            {/* Main bar - fully responsive height */}
             <rect
                 x={startX}
                 y={y + (calculateBarHeight(data) - touchTargetSize) / 2}
-                width={Math.max(width + 2, 4)} // Add 2px to width to extend under milestone marker
+                width={Math.max(width, 2)} // Minimum width of 2px
                 height={touchTargetSize}
-                rx={3} // Reduced border radius to improve milestone alignment
+                rx={4}
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
                 onClick={() => onBarClick?.(data)}

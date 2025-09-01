@@ -450,21 +450,111 @@ export const processSubProgramData = processSubProgramDataFromAPI;
  */
 const fetchInvestmentData = async () => {
     try {
-        console.log('🚀 Fetching investment data from /api/investments...');
-        const response = await fetch('/api/investments');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const result = await response.json();
+        console.log('🚀 Fetching all investment data from /api/investments with pagination...');
         
-        if (result.status !== 'success') {
-            throw new Error(result.message || 'Failed to fetch investment data');
+        let allData = [];
+        let page = 1;
+        let hasMoreData = true;
+        const perPage = 1000; // Use large page size for efficiency
+        
+        while (hasMoreData) {
+            console.log(`📄 Fetching page ${page} (per_page: ${perPage})...`);
+            
+            const response = await fetch(`/api/investments?page=${page}&per_page=${perPage}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+            
+            if (result.status !== 'success') {
+                throw new Error(result.message || 'Failed to fetch investment data');
+            }
+            
+            // Add this page's data to our collection
+            allData = allData.concat(result.data);
+            console.log(`📊 Page ${page} loaded: ${result.data.length} records (Total so far: ${allData.length})`);
+            
+            // Check if we have more data to fetch
+            // If we got fewer records than requested, we've reached the end
+            hasMoreData = result.data.length === perPage;
+            page++;
+            
+            // Safety check to prevent infinite loops
+            if (page > 100) {
+                console.warn('⚠️ Reached maximum page limit (100). Stopping pagination.');
+                break;
+            }
         }
         
-        console.log('📊 Investment data loaded:', result.data.length, 'records');
-        return result.data;
+        console.log('✅ All investment data loaded:', allData.length, 'total records');
+        return allData;
+        
     } catch (error) {
         console.error('❌ Failed to fetch investment data:', error);
+        throw error;
+    }
+};
+
+/**
+ * DEBUG FUNCTION: Analyzes all Supply Chain data
+ * @returns {Object} Detailed analysis of Supply Chain records
+ */
+export const debugSupplyChainData = async () => {
+    try {
+        console.log('🔍 === DEBUG: Analyzing all Supply Chain data ===');
+        
+        // Fetch all investment data
+        const investmentData = await fetchInvestmentData();
+        console.log('📊 Total investment records fetched:', investmentData.length);
+        
+        // Find all Supply Chain records
+        const allSupplyChain = investmentData.filter(item => item.INV_FUNCTION === 'Supply Chain');
+        console.log('🔍 Total Supply Chain records (all types):', allSupplyChain.length);
+        
+        // Group by INV_EXT_ID
+        const supplyChainGroups = {};
+        allSupplyChain.forEach(item => {
+            if (!supplyChainGroups[item.INV_EXT_ID]) {
+                supplyChainGroups[item.INV_EXT_ID] = [];
+            }
+            supplyChainGroups[item.INV_EXT_ID].push(item);
+        });
+        
+        console.log('🔍 Supply Chain unique projects:', Object.keys(supplyChainGroups).length);
+        
+        // Analyze each project
+        Object.keys(supplyChainGroups).forEach(projectId => {
+            const projectRecords = supplyChainGroups[projectId];
+            const investmentRecord = projectRecords.find(r => r.ROADMAP_ELEMENT === 'Investment');
+            
+            console.log(`\n📋 Project: ${projectId}`);
+            console.log(`  Name: ${investmentRecord?.INVESTMENT_NAME || 'NO INVESTMENT RECORD'}`);
+            console.log(`  Status: ${investmentRecord?.INV_OVERALL_STATUS || 'N/A'}`);
+            console.log(`  Market: ${investmentRecord?.INV_MARKET || 'NO MARKET'}`);
+            console.log(`  Type: ${investmentRecord?.CLRTY_INV_TYPE || 'N/A'}`);
+            console.log(`  Records count: ${projectRecords.length}`);
+            console.log(`  Record types: ${projectRecords.map(r => r.ROADMAP_ELEMENT).join(', ')}`);
+            
+            // Check if this would pass processRegionData filters
+            const hasInvestmentRecord = !!investmentRecord;
+            const hasMarket = investmentRecord?.INV_MARKET && investmentRecord.INV_MARKET.trim() !== '';
+            const isCorrectType = investmentRecord && ["Non-Clarity item", "Project", "Programs"].includes(investmentRecord.CLRTY_INV_TYPE);
+            
+            console.log(`  ✅ Has Investment Record: ${hasInvestmentRecord}`);
+            console.log(`  ✅ Has Market: ${hasMarket}`);
+            console.log(`  ✅ Correct Type: ${isCorrectType}`);
+            console.log(`  🎯 Would be processed: ${hasInvestmentRecord && hasMarket && isCorrectType}`);
+        });
+        
+        return {
+            totalRecords: investmentData.length,
+            supplyChainRecords: allSupplyChain.length,
+            uniqueProjects: Object.keys(supplyChainGroups).length,
+            projectDetails: supplyChainGroups
+        };
+        
+    } catch (error) {
+        console.error('❌ Error in debugSupplyChainData:', error);
         throw error;
     }
 };
@@ -486,6 +576,11 @@ export const processRegionData = async (filters = {}) => {
             ["Non-Clarity item", "Project", "Programs"].includes(item.CLRTY_INV_TYPE)
         );
         console.log('🎯 Filtered project data:', projectData.length, 'records');
+        
+        // Debug: Check Supply Chain records specifically
+        const supplyChainRecords = projectData.filter(item => item.INV_FUNCTION === 'Supply Chain');
+        console.log('🔍 Supply Chain records in filtered data:', supplyChainRecords.length);
+        console.log('🔍 Sample Supply Chain INV_EXT_IDs:', supplyChainRecords.slice(0, 5).map(r => r.INV_EXT_ID));
 
         // 2. Group all records for each project by its unique ID
         const projectGroups = {};
@@ -532,10 +627,26 @@ export const processRegionData = async (filters = {}) => {
             const { region, market } = parseMarket(mainRecord.INV_MARKET);
 
             // 5. Apply the user-selected filters
-            if (filters.region && filters.region !== 'All' && region !== filters.region) return;
-            if (filters.market && filters.market !== 'All' && market !== filters.market) return;
-            if (filters.function && filters.function !== 'All' && mainRecord.INV_FUNCTION !== filters.function) return;
-            if (filters.tier && filters.tier !== 'All' && mainRecord.INV_TIER?.toString() !== filters.tier) return;
+            const beforeFilterCount = processedProjects.length;
+            
+            if (filters.region && filters.region !== 'All' && region !== filters.region) {
+                console.log(`🚫 Project ${projectId} filtered out by region: ${region} !== ${filters.region}`);
+                return;
+            }
+            if (filters.market && filters.market !== 'All' && market !== filters.market) {
+                console.log(`🚫 Project ${projectId} filtered out by market: ${market} !== ${filters.market}`);
+                return;
+            }
+            if (filters.function && filters.function !== 'All' && mainRecord.INV_FUNCTION !== filters.function) {
+                console.log(`🚫 Project ${projectId} filtered out by function: ${mainRecord.INV_FUNCTION} !== ${filters.function}`);
+                return;
+            }
+            if (filters.tier && filters.tier !== 'All' && mainRecord.INV_TIER?.toString() !== filters.tier) {
+                console.log(`🚫 Project ${projectId} filtered out by tier: ${mainRecord.INV_TIER} !== ${filters.tier}`);
+                return;
+            }
+            
+            console.log(`✅ Project ${projectId} (${mainRecord.INVESTMENT_NAME}) passed all filters`);
 
             // --- If a project passes the filters, process its details ---
 

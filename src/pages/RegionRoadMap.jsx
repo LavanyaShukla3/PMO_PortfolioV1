@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { processRegionData, getRegionFilterOptions } from '../services/apiDataService';
+import { processRegionData, getRegionFilterOptions, debugSupplyChainData } from '../services/apiDataService';
 import { parseDate, calculatePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
+import GanttBar from '../components/GanttBar';
 
 // Zoom levels configuration
 const ZOOM_LEVELS = {
@@ -109,6 +110,7 @@ const truncateLabel = (label, hasAdjacentMilestones) => {
 };
 
 const RegionRoadMap = () => {
+    // ALL HOOKS MUST BE DECLARED AT THE TOP LEVEL
     const [filters, setFilters] = useState({
         region: 'All',
         market: 'All',
@@ -128,6 +130,7 @@ const RegionRoadMap = () => {
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [processedData, setProcessedData] = useState([]);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -149,23 +152,23 @@ const RegionRoadMap = () => {
             try {
                 setLoading(true);
                 setError(null);
+                
+                // DEBUG: Analyze Supply Chain data first
+                console.log('🔍 Starting Supply Chain debug analysis...');
+                await debugSupplyChainData();
+                
                 const options = await getRegionFilterOptions();
                 setFilterOptions(options);
                 setAvailableMarkets(options.markets);
 
-                // Initial scroll to show June 2025 to June 2026 (responsive months)
-                if (timelineScrollRef.current) {
-                    // Calculate scroll position to show June 2025 (current month - 2)
-                    const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
-                    const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
-                    timelineScrollRef.current.scrollLeft = scrollPosition;
-                    // Sync gantt scroll position
-                    if (ganttScrollRef.current) {
-                        ganttScrollRef.current.scrollLeft = scrollPosition;
-                    }
-                }
+                // Also load initial data with default filters
+                console.log('Loading initial region data with default filters:', filters);
+                const initialData = await processRegionData(filters);
+                setProcessedData(initialData);
+                console.log('Initial data loaded:', initialData.length, 'projects');
+
             } catch (err) {
-                console.error('Failed to load region filter options:', err);
+                console.error('Failed to load region filter options or initial data:', err);
                 setError(err.message);
             } finally {
                 setLoading(false);
@@ -173,7 +176,21 @@ const RegionRoadMap = () => {
         };
 
         loadData();
-    }, []);
+    }, []); // Only run once on mount
+
+    // Handle initial scroll position after data loads and responsive constants are set
+    useEffect(() => {
+        if (!loading && timelineScrollRef.current && responsiveConstants.MONTH_WIDTH) {
+            // Calculate scroll position to show June 2025 (current month - 2)
+            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
+            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+            timelineScrollRef.current.scrollLeft = scrollPosition;
+            // Sync gantt scroll position
+            if (ganttScrollRef.current) {
+                ganttScrollRef.current.scrollLeft = scrollPosition;
+            }
+        }
+    }, [loading, responsiveConstants.MONTH_WIDTH]);
 
     // Update available markets when region changes
     useEffect(() => {
@@ -200,8 +217,75 @@ const RegionRoadMap = () => {
             }
         };
 
-        updateMarkets();
+        if (filterOptions.markets.length > 0) {
+            updateMarkets();
+        }
     }, [filters.region, filterOptions.markets]);
+
+    // Load and process region data when filters change (but not on initial load)
+    useEffect(() => {
+        const loadRegionData = async () => {
+            // Skip if this is the initial load (handled in the mount effect above)
+            if (loading) return;
+            
+            try {
+                console.log('Loading region data with filters:', filters);
+                const data = await processRegionData(filters);
+                setProcessedData(data);
+                console.log('Filtered data loaded:', data.length, 'projects');
+            } catch (err) {
+                console.error('Failed to process region data:', err);
+                setError(err.message);
+            }
+        };
+
+        // Only load data when filters change after initial mount
+        if (!loading && filterOptions.regions.length > 0) {
+            loadRegionData();
+        }
+    }, [filters]); // Remove loading and error dependencies to avoid race conditions
+
+    // Update responsive constants when zoom level changes
+    useEffect(() => {
+        setResponsiveConstants(getResponsiveConstants(zoomLevel));
+    }, [zoomLevel]);
+
+    // Use the standard 73-month timeline
+    const { startDate, endDate } = getTimelineRange();
+    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
+
+    // Check if a project has any overlap with the timeline range
+    const isProjectWithinTimelineRange = (project) => {
+        const projectStartDate = parseDate(project.startDate);
+        const projectEndDate = parseDate(project.endDate);
+        
+        if (!projectStartDate || !projectEndDate) {
+            console.log('Project has invalid dates:', project.name, project.startDate, project.endDate);
+            return false;
+        }
+
+        // Project overlaps if it starts before timeline ends AND ends after timeline starts
+        const isWithinRange = projectStartDate <= endDate && projectEndDate >= startDate;
+        
+        if (!isWithinRange) {
+            console.log('Project outside timeline:', project.name, 'Project:', projectStartDate, '-', projectEndDate, 'Timeline:', startDate, '-', endDate);
+        }
+        
+        return isWithinRange;
+    };
+
+    // Filter projects to only include those within the timeline range
+    const timelineFilteredData = useMemo(() => {
+        console.log('Timeline filtering - Input data:', processedData.length, 'projects');
+        console.log('Timeline range:', startDate, 'to', endDate);
+        
+        const filtered = processedData.filter(project => isProjectWithinTimelineRange(project));
+        console.log('Timeline filtering - Output data:', filtered.length, 'projects');
+        
+        return filtered;
+    }, [processedData, startDate, endDate]);
+
+    // ALL CONDITIONAL LOGIC AND EARLY RETURNS MUST COME AFTER ALL HOOKS
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -231,23 +315,10 @@ const RegionRoadMap = () => {
         }
     };
 
-    const [processedData, setProcessedData] = useState([]);
-
-    // Load and process region data based on current filters
+    // Update responsive constants when zoom level changes
     useEffect(() => {
-        const loadRegionData = async () => {
-            if (loading || error) return;
-            try {
-                const data = await processRegionData(filters);
-                setProcessedData(data);
-            } catch (err) {
-                console.error('Failed to process region data:', err);
-                setError(err.message);
-            }
-        };
-
-        loadRegionData();
-    }, [filters, loading, error]);
+        setResponsiveConstants(getResponsiveConstants(zoomLevel));
+    }, [zoomLevel]);
 
     // Loading state
     if (loading) {
@@ -279,10 +350,6 @@ const RegionRoadMap = () => {
         );
     }
 
-    // Use the standard 73-month timeline
-    const { startDate, endDate } = getTimelineRange();
-    const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
-
     // Phase colors mapping
     const phaseColors = {
         'Initiate': '#c1e5f5',
@@ -296,10 +363,15 @@ const RegionRoadMap = () => {
 
 
     const handleFilterChange = (filterType, value) => {
-        setFilters(prev => ({
-            ...prev,
-            [filterType]: value
-        }));
+        console.log(`🔄 Filter change: ${filterType} = ${value}`);
+        setFilters(prev => {
+            const newFilters = {
+                ...prev,
+                [filterType]: value
+            };
+            console.log('🔄 New filters state:', newFilters);
+            return newFilters;
+        });
     };
 
     // Zoom handlers
@@ -322,11 +394,6 @@ const RegionRoadMap = () => {
     const handleZoomReset = () => {
         setZoomLevel(1.0);
     };
-
-    // Update responsive constants when zoom level changes
-    useEffect(() => {
-        setResponsiveConstants(getResponsiveConstants(zoomLevel));
-    }, [zoomLevel]);
 
     // Apply project scaling based on zoom level
     const getScaledFilteredData = () => {
@@ -352,38 +419,6 @@ const RegionRoadMap = () => {
     };
 
     const rowHeight = calculateRowHeight();
-
-    // Check if a project has any overlap with the timeline range
-    const isProjectWithinTimelineRange = (project) => {
-        // Check unphased projects
-        if (project.isUnphased) {
-            const projectStartDate = parseDate(project.startDate);
-            const projectEndDate = parseDate(project.endDate);
-            if (!projectStartDate || !projectEndDate) return false;
-
-            // Project overlaps if it starts before timeline ends AND ends after timeline starts
-            return projectStartDate <= endDate && projectEndDate >= startDate;
-        }
-
-        // Check phased projects - any phase within range means project should be shown
-        if (project.phases && project.phases.length > 0) {
-            return project.phases.some(phase => {
-                const phaseStartDate = parseDate(phase.startDate);
-                const phaseEndDate = parseDate(phase.endDate);
-                if (!phaseStartDate || !phaseEndDate) return false;
-
-                // Phase overlaps if it starts before timeline ends AND ends after timeline starts
-                return phaseStartDate <= endDate && phaseEndDate >= startDate;
-            });
-        }
-
-        return false;
-    };
-
-    // Filter projects to only include those within the timeline range
-    const timelineFilteredData = useMemo(() => {
-        return processedData.filter(project => isProjectWithinTimelineRange(project));
-    }, [processedData, startDate, endDate]);
 
     // Display3: Monthly grouped milestone processing function
     // Updated: Now processes only SG3 milestones (filtered in dataService.js)
@@ -554,8 +589,88 @@ const RegionRoadMap = () => {
 
             {/* Gantt Chart */}
             {timelineFilteredData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                    No projects match the current filters or fall within the timeline range
+                <div className="flex-1 flex flex-col">
+                    {/* Show Timeline Axis even when no data */}
+                    <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+                        <div className="relative flex w-full">
+                            {/* Sticky Project Names Header */}
+                            <div
+                                className="flex-shrink-0 bg-white border-r border-gray-200"
+                                style={{
+                                    width: responsiveConstants.LABEL_WIDTH,
+                                    position: 'sticky',
+                                    left: 0,
+                                    zIndex: 30,
+                                }}
+                            >
+                                <div
+                                    className="flex items-center justify-between px-2 font-semibold text-gray-700"
+                                    style={{
+                                        height: responsiveConstants.TOUCH_TARGET_SIZE,
+                                        fontSize: responsiveConstants.FONT_SIZE
+                                    }}
+                                >
+                                    <span className="truncate">Region Projects</span>
+                                    {/* Zoom Controls */}
+                                    <div className="flex items-center space-x-1 ml-2">
+                                        <button
+                                            onClick={handleZoomOut}
+                                            disabled={zoomLevel <= 0.5}
+                                            className="w-8 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-300 rounded text-xs font-bold transition-colors"
+                                            title="Zoom Out"
+                                        >
+                                            −
+                                        </button>
+                                        <span className="text-xs text-gray-600 text-center font-medium min-w-[35px]">
+                                            {Math.round(zoomLevel * 100)}%
+                                        </span>
+                                        <button
+                                            onClick={handleZoomIn}
+                                            disabled={zoomLevel >= 1.5}
+                                            className="w-8 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-300 rounded text-xs font-bold transition-colors"
+                                            title="Zoom In"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            onClick={handleZoomReset}
+                                            className="text-xs px-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                                            title="Reset to 100%"
+                                        >
+                                            ↺
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Timeline Axis */}
+                            <div
+                                ref={timelineScrollRef}
+                                className="flex-1 overflow-x-auto"
+                                style={{
+                                    width: `${responsiveConstants.MONTH_WIDTH * responsiveConstants.VISIBLE_MONTHS}px`,
+                                    maxWidth: `calc(100vw - ${responsiveConstants.LABEL_WIDTH}px)`
+                                }}
+                                onScroll={handleTimelineScroll}
+                            >
+                                <TimelineAxis
+                                    startDate={startDate}
+                                    monthWidth={responsiveConstants.MONTH_WIDTH}
+                                    fontSize={responsiveConstants.FONT_SIZE}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* No Data Message */}
+                    <div className="text-center py-8 text-gray-500">
+                        <div className="mb-2">No projects match the current filters or fall within the timeline range</div>
+                        <div className="text-sm text-gray-400">
+                            Processed Data: {processedData.length} projects | 
+                            Timeline: {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()} |
+                            Filters: {JSON.stringify(filters)}
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="flex-1 flex flex-col">
@@ -580,55 +695,33 @@ const RegionRoadMap = () => {
                                     }}
                                 >
                                     <span className="truncate">Region Projects</span>
-                                    {/* Responsive Zoom Controls */}
+                                    {/* Zoom Controls */}
                                     <div className="flex items-center space-x-1 ml-2">
                                         <button
                                             onClick={handleZoomOut}
                                             disabled={zoomLevel <= 0.5}
-                                            className={`
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'w-10 h-8' : 'w-8 h-6'}
-                                                flex items-center justify-center bg-gray-100 hover:bg-gray-200
-                                                disabled:bg-gray-50 disabled:text-gray-300 rounded
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm' : 'text-xs'}
-                                                font-bold transition-colors
-                                            `}
-                                            title="Zoom Out (Show More Months)"
+                                            className="w-8 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-300 rounded text-xs font-bold transition-colors"
+                                            title="Zoom Out"
                                         >
                                             −
                                         </button>
-                                        <span
-                                            className={`
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm min-w-[45px]' : 'text-xs min-w-[35px]'}
-                                                text-gray-600 text-center font-medium
-                                            `}
-                                        >
+                                        <span className="text-xs text-gray-600 text-center font-medium min-w-[35px]">
                                             {Math.round(zoomLevel * 100)}%
                                         </span>
                                         <button
                                             onClick={handleZoomIn}
                                             disabled={zoomLevel >= 1.5}
-                                            className={`
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'w-10 h-8' : 'w-8 h-6'}
-                                                flex items-center justify-center bg-gray-100 hover:bg-gray-200
-                                                disabled:bg-gray-50 disabled:text-gray-300 rounded
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm' : 'text-xs'}
-                                                font-bold transition-colors
-                                            `}
-                                            title="Zoom In (Show Fewer Months)"
+                                            className="w-8 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-300 rounded text-xs font-bold transition-colors"
+                                            title="Zoom In"
                                         >
                                             +
                                         </button>
-                                        {/* Reset button - hidden on very small screens */}
                                         <button
                                             onClick={handleZoomReset}
-                                            className={`
-                                                ${responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'text-sm px-2 py-1' : 'text-xs px-1'}
-                                                text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors
-                                                ${responsiveConstants.LABEL_WIDTH < 200 ? 'hidden' : 'block'}
-                                            `}
+                                            className="text-xs px-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
                                             title="Reset to 100%"
                                         >
-                                            {responsiveConstants.TOUCH_TARGET_SIZE > 24 ? 'Reset' : '↺'}
+                                            ↺
                                         </button>
                                     </div>
                                 </div>
@@ -755,65 +848,37 @@ const RegionRoadMap = () => {
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
-                                                {/* Project bars and phases */}
-                                                {project.isUnphased ? (
-                                                    // Single unphased bar (only render if within timeline range)
-                                                    (() => {
-                                                        const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
-                                                        const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
-                                                        if (!projectStartDate || !projectEndDate) return null;
+                                                {/* Project bars - simplified single bar per project */}
+                                                {(() => {
+                                                    const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                                                    const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                                                    if (!projectStartDate || !projectEndDate) return null;
 
-                                                        // Skip projects that don't overlap with timeline range
-                                                        if (projectStartDate > endDate || projectEndDate < startDate) {
-                                                            return null;
-                                                        }
+                                                    // Skip projects that don't overlap with timeline range
+                                                    if (projectStartDate > endDate || projectEndDate < startDate) {
+                                                        return null;
+                                                    }
 
-                                                        const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
-                                                        const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
-                                                        const width = Math.max(endX - startX, 2);
+                                                    // Calculate pixel positions for GanttBar
+                                                    const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
+                                                    const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
+                                                    const width = Math.max(endX - startX, 2); // Minimum 2px width
+                                                    const yPos = yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2;
 
-                                                        return (
-                                                            <rect
-                                                                x={startX}
-                                                                y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
-                                                                width={width}
-                                                                height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                                rx={4}
-                                                                fill="#9ca3af"
-                                                                className="transition-opacity duration-150 hover:opacity-90"
-                                                            />
-                                                        );
-                                                    })()
-                                                ) : (
-                                                    // Multiple phase bars (only render phases within timeline range)
-                                                    project.phases?.map((phase, phaseIndex) => {
-                                                        const phaseStartDate = parseDate(phase.startDate, `${project.name} - ${phase.name} Start`);
-                                                        const phaseEndDate = parseDate(phase.endDate, `${project.name} - ${phase.name} End`);
-                                                        if (!phaseStartDate || !phaseEndDate) return null;
-
-                                                        // Skip phases that don't overlap with timeline range
-                                                        if (phaseStartDate > endDate || phaseEndDate < startDate) {
-                                                            return null;
-                                                        }
-
-                                                        const startX = calculatePosition(phaseStartDate, startDate, responsiveConstants.MONTH_WIDTH);
-                                                        const endX = calculatePosition(phaseEndDate, startDate, responsiveConstants.MONTH_WIDTH);
-                                                        const width = Math.max(endX - startX, 2);
-
-                                                        return (
-                                                            <rect
-                                                                key={`${project.id}-${phase.name}`}
-                                                                x={startX}
-                                                                y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
-                                                                width={width}
-                                                                height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                                rx={4}
-                                                                fill={phaseColors[phase.name] || '#9ca3af'}
-                                                                className="transition-opacity duration-150 hover:opacity-90"
-                                                            />
-                                                        );
-                                                    }).filter(Boolean)
-                                                )}
+                                                    return (
+                                                        <GanttBar
+                                                            key={`${project.id}-bar`}
+                                                            data={project}
+                                                            y={yPos}
+                                                            startX={startX}
+                                                            width={width}
+                                                            height={responsiveConstants.TOUCH_TARGET_SIZE}
+                                                            color="#9ca3af"
+                                                            label={project.name}
+                                                            status={project.status}
+                                                        />
+                                                    );
+                                                })()}
 
                                                 {/* Milestones */}
                                                 {milestones.map((milestone, milestoneIndex) => (
@@ -821,7 +886,7 @@ const RegionRoadMap = () => {
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
                                                         y={yOffset + (projectRowHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
-                                                        complete={milestone.status}
+                                                        complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
                                                         labelPosition={milestone.labelPosition}
