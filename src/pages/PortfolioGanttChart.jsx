@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { processPortfolioData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
@@ -115,7 +115,7 @@ const truncateLabel = (label, hasAdjacentMilestones) => {
 };
 
 // Updated: Now processes only SG3 milestones (filtered in dataService.js)
-const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
+const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, projectEndDate = null) => {
     if (!milestones?.length) return [];
 
     // Display3: Group milestones by month
@@ -138,7 +138,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
         // Process each milestone in the month
         monthMilestones.forEach((milestone, index) => {
             const milestoneDate = parseDate(milestone.date);
-            const x = calculatePosition(milestoneDate, startDate, monthWidth);
+            const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
 
             // STRICT RULE FIX: Only the first milestone in each month shows the labels
             // This prevents duplicate label rendering for multiple milestones in same month
@@ -685,18 +685,18 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                 const centerY = yOffset + totalHeight / 2;
 
                                 // Process milestones with position information
-                                const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH);
+                                const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
-                                        {/* Render bar - responsive height */}
+                                        {/* Render bar - responsive height with improved milestone alignment */}
                                         <rect
                                             key={`bar-${project.id}`}
                                             x={startX}
                                             y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
-                                            width={Math.max(width, 2)}
+                                            width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment
                                             height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                            rx={4}
+                                            rx={3} // Reduced border radius for better milestone alignment
                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                             className="transition-opacity duration-150 hover:opacity-90 cursor-default"
                                             style={{

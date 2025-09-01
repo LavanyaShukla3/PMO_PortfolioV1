@@ -1,6 +1,7 @@
 """
 Flask API server for PMO Portfolio application.
 Provides endpoints to fetch data from Azure Databricks.
+Enhanced with caching and pagination support.
 """
 import os
 import logging
@@ -8,6 +9,7 @@ import json
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from databricks_client import databricks_client
+from cache_service import cache_service
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -24,8 +26,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Configure CORS
-frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-CORS(app, origins=[frontend_url])
+frontend_urls = [
+    os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+    'http://localhost:3001'  # Additional port for development
+]
+CORS(app, origins=frontend_urls)
 
 # SQL query file paths
 SQL_QUERIES_DIR = os.path.join(os.path.dirname(__file__), 'sql_queries')
@@ -210,17 +215,131 @@ def get_investments():
         }), 500
 
 
+@app.route('/api/data/paginated', methods=['GET'])
+def get_paginated_data():
+    """
+    Fetch hierarchy and investment data with pagination and caching.
+    This is the optimized endpoint for large datasets.
+    """
+    try:
+        # Get pagination parameters from query string
+        page = request.args.get('page', 1, type=int)
+        page_size = request.args.get('page_size', 50, type=int)
+        use_cache = request.args.get('cache', 'true').lower() == 'true'
+        
+        logger.info(f"🚀 Fetching paginated data (page={page}, size={page_size}, cache={use_cache})")
+        
+        # Execute both queries with pagination
+        hierarchy_result = databricks_client.execute_paginated_query(
+            open(HIERARCHY_QUERY_FILE, 'r').read(),
+            page=page,
+            page_size=page_size,
+            use_cache=use_cache,
+            cache_ttl=600  # 10 minutes cache for development
+        )
+        
+        investment_result = databricks_client.execute_paginated_query(
+            open(INVESTMENT_QUERY_FILE, 'r').read(),
+            page=page,
+            page_size=page_size,
+            use_cache=use_cache,
+            cache_ttl=600
+        )
+        
+        logger.info(f"✅ Successfully fetched paginated data")
+        
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'hierarchy': hierarchy_result,
+                'investment': investment_result
+            },
+            'mode': 'databricks',
+            'pagination_info': {
+                'page': page,
+                'page_size': page_size,
+                'cached': use_cache
+            }
+        })
+        
+    except Exception as e:
+        error_msg = f"Failed to fetch paginated data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
+@app.route('/api/cache/stats', methods=['GET'])
+def get_cache_stats():
+    """Get cache statistics and performance metrics."""
+    try:
+        stats = cache_service.get_cache_stats()
+        return jsonify({
+            'status': 'success',
+            'cache_stats': stats,
+            'mode': 'databricks'
+        })
+    except Exception as e:
+        error_msg = f"Failed to get cache stats: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_cache():
+    """Clear cache entries."""
+    try:
+        pattern = request.json.get('pattern') if request.json else None
+        success = cache_service.clear_cache(pattern)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': 'Cache cleared successfully',
+                'mode': 'databricks'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to clear cache'
+            }), 500
+            
+    except Exception as e:
+        error_msg = f"Failed to clear cache: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
+
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
     """
     Fetch both hierarchy and investment data in a single request.
     Useful for frontend components that need both datasets.
+    Enhanced with caching support.
     """
     try:
-        logger.info("Fetching all data from Databricks...")
+        use_cache = request.args.get('cache', 'true').lower() == 'true'
+        logger.info(f"Fetching all data from Databricks (cache={use_cache})...")
         
-        # Execute both queries
-        hierarchy_data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        # Execute both queries with caching
+        hierarchy_data = databricks_client.execute_query_from_file(
+            HIERARCHY_QUERY_FILE, 
+            use_cache=use_cache, 
+            cache_ttl=300
+        )
+        investment_data = databricks_client.execute_query_from_file(
+            INVESTMENT_QUERY_FILE, 
+            use_cache=use_cache, 
+            cache_ttl=300
+        )
         investment_data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
         
         logger.info(f"Successfully fetched {len(hierarchy_data)} hierarchy records and {len(investment_data)} investment records")
@@ -293,7 +412,7 @@ if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
     logger.info(f"Starting PMO Portfolio API server on port {port}")
-    logger.info(f"CORS enabled for: {frontend_url}")
+    logger.info(f"CORS enabled for: {', '.join(frontend_urls)}")
     
     app.run(
         host='0.0.0.0',

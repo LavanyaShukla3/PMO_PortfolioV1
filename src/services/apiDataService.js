@@ -389,6 +389,11 @@ const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
                     inv.TASK_NAME?.toLowerCase().includes('sg3')
                 );
                 
+                // Find parent program name from hierarchy
+                const parentProgramName = subProgram.COE_ROADMAP_PARENT_NAME || 
+                                        projectInfo.INV_FUNCTION || 
+                                        'Unassigned';
+                
                 // Add to projects array
                 projects.push({
                     PROJECT_ID: projectId,
@@ -396,6 +401,8 @@ const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
                     START_DATE: projectInfo.TASK_START,
                     END_DATE: projectInfo.TASK_FINISH,
                     STATUS: projectInfo.INV_OVERALL_STATUS,
+                    COE_ROADMAP_PARENT_NAME: parentProgramName, // Add parent program name for filtering
+                    INV_FUNCTION: projectInfo.INV_FUNCTION, // Also keep function for additional filtering
                     isSubProgram: true,
                     phaseData: phaseData,
                     milestones: milestoneData

@@ -119,13 +119,13 @@ const GanttBar = ({
     return (
         <g className="gantt-bar">
             
-            {/* Main bar - fully responsive height */}
+            {/* Main bar - fully responsive height with milestone alignment */}
             <rect
                 x={startX}
                 y={y + (calculateBarHeight(data) - touchTargetSize) / 2}
-                width={Math.max(width, 2)} // Minimum width of 2px
+                width={Math.max(width + 2, 4)} // Add 2px to width to extend under milestone marker
                 height={touchTargetSize}
-                rx={4}
+                rx={3} // Reduced border radius to improve milestone alignment
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
                 onClick={() => onBarClick?.(data)}

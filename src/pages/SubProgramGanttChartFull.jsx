@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import GanttBar from '../components/GanttBar';
-import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { processSubProgramData } from '../services/apiDataService';
 
 const ZOOM_LEVELS = {
@@ -51,7 +51,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
     const getResponsiveConstants = () => ZOOM_LEVELS[zoomLevel];
 
     // Milestone processing function (similar to PortfolioGanttChart)
-    const processMilestonesForProject = (milestones, startDate, monthWidth) => {
+    const processMilestonesForProject = (milestones, startDate, monthWidth, projectEndDate = null) => {
         if (!milestones || milestones.length === 0) return [];
 
         // Convert milestones to the format expected by grouping functions
@@ -81,7 +81,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                 const milestoneDate = parseDate(milestone.date);
                 if (!milestoneDate) return;
 
-                const x = calculatePosition(milestoneDate, startDate, monthWidth);
+                const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
                 const isFirstInMonth = index === 0;
 
                 processedMilestones.push({
@@ -470,7 +470,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                         onScroll={handleScroll}
                     >
                         <div style={{ width: `${timelineWidth}px` }}>
-                            <svg width={timelineWidth} height={allProjectRows.length * (calculateBarHeight({}) + constants.ROW_PADDING)}>
+                            <svg 
+                                key={`gantt-${selectedProgram}-${dataVersion}`} // Add key to force re-render
+                                width={timelineWidth} 
+                                height={allProjectRows.length * (calculateBarHeight({}) + constants.ROW_PADDING)}
+                            >
                                 {allProjectRows.map((row, index) => {
                                     // Calculate proper Y offset using PortfolioGanttChart logic
                                     const rowSpacing = constants.ROW_PADDING || 8;
@@ -523,10 +527,17 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                             
                                             {/* Render Milestones using PortfolioGanttChart logic */}
                                             {(() => {
+                                                // Calculate project end date from phases
+                                                const projectEndDate = row.phases.reduce((latest, phase) => {
+                                                    const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                                    return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                                                }, null);
+                                                
                                                 const processedMilestones = processMilestonesForProject(
                                                     row.projectMilestones || [],
                                                     startDate,
-                                                    constants.MONTH_WIDTH
+                                                    constants.MONTH_WIDTH,
+                                                    projectEndDate
                                                 );
                                                 
                                                 return processedMilestones.map((milestone, milestoneIndex) => (

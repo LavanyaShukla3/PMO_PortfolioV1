@@ -1,11 +1,16 @@
 """
 Databricks SQL connector client for secure database operations.
+Enhanced with caching and pagination support.
 """
 import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from databricks import sql
 from dotenv import load_dotenv
+
+# Import our services
+from cache_service import cache_service
+from pagination_service import pagination_service
 
 # Load environment variables
 load_dotenv()
@@ -57,29 +62,38 @@ class DatabricksClient:
             self.connection = None
             logger.info("Disconnected from Databricks")
     
-    def execute_query(self, query: str, timeout: int = 300) -> List[Dict[str, Any]]:
+    def execute_query(self, query: str, timeout: int = 300, use_cache: bool = True, cache_ttl: int = 300) -> List[Dict[str, Any]]:
         """
         Execute a SQL query and return results as a list of dictionaries.
+        Enhanced with caching support.
         
         Args:
             query (str): The SQL query to execute
             timeout (int): Query timeout in seconds (default: 300 = 5 minutes)
+            use_cache (bool): Whether to use caching for this query
+            cache_ttl (int): Cache time-to-live in seconds (default 5 minutes)
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
         """
+        # Check cache first if enabled
+        if use_cache:
+            cached_result = cache_service.get(query)
+            if cached_result is not None:
+                return cached_result
+        
         if not self.connection:
             self.connect()
         
         try:
             cursor = self.connection.cursor()
             
-            # Add LIMIT to very long queries if not already present
+            # Add reasonable LIMIT to very long queries if not already present
             if len(query) > 2000 and "LIMIT" not in query.upper():
-                logger.warning("Adding LIMIT 1000 to large query to prevent timeout")
-                query = query.rstrip(';') + "\nLIMIT 1000;"
+                logger.warning("Adding LIMIT 100 to large query to prevent timeout")
+                query = query.rstrip(';') + "\nLIMIT 100;"
             
-            logger.info(f"Executing query (length: {len(query)} chars)")
+            logger.info(f"🔍 Executing query (length: {len(query)} chars)")
             cursor.execute(query)
             
             # Get column names
@@ -91,19 +105,100 @@ class DatabricksClient:
                 results.append(dict(zip(columns, row)))
             
             cursor.close()
-            logger.info(f"Query executed successfully, returned {len(results)} rows")
+            logger.info(f"✅ Query executed successfully, returned {len(results)} rows")
+            
+            # Cache the results if caching is enabled
+            if use_cache and results:
+                cache_service.set(query, results, ttl=cache_ttl)
+            
             return results
             
         except Exception as e:
-            logger.error(f"Query execution failed: {str(e)}")
+            logger.error(f"❌ Query execution failed: {str(e)}")
             raise
     
-    def execute_query_from_file(self, file_path: str) -> List[Dict[str, Any]]:
+    def execute_paginated_query(
+        self, 
+        query: str, 
+        page: int = 1, 
+        page_size: int = 50,
+        use_cache: bool = True,
+        cache_ttl: int = 300
+    ) -> Dict[str, Any]:
         """
-        Execute a SQL query from a file.
+        Execute a paginated query with caching support.
+        
+        Args:
+            query: Original SQL query
+            page: Page number (1-based)
+            page_size: Number of records per page
+            use_cache: Whether to use caching
+            cache_ttl: Cache time-to-live in seconds
+            
+        Returns:
+            Dictionary with paginated data and metadata
+        """
+        # Create cache key including pagination params
+        cache_params = {"page": page, "page_size": page_size}
+        
+        # Check cache first
+        if use_cache:
+            cached_result = cache_service.get(query, cache_params)
+            if cached_result is not None:
+                logger.info(f"📄 Returning cached paginated result for page {page}")
+                return cached_result
+        
+        try:
+            # For very large queries, we'll paginate at the database level
+            if len(query) > 1000:
+                # Add pagination to the query
+                paginated_query = pagination_service.add_pagination_to_query(query, page, page_size)
+                
+                # Execute the paginated query
+                results = self.execute_query(paginated_query, use_cache=False)  # Don't double-cache
+                
+                # For large queries, we'll estimate total count to avoid expensive COUNT queries
+                total_count = len(results) * 10  # Rough estimate for development
+                if len(results) < page_size:
+                    # If we got fewer results than requested, we're near the end
+                    total_count = (page - 1) * page_size + len(results)
+                
+                # Create pagination metadata
+                metadata = pagination_service.create_pagination_metadata(total_count, page, page_size)
+                
+                result = {
+                    "data": results,
+                    **metadata
+                }
+                
+            else:
+                # For smaller queries, get full results and paginate in memory
+                full_results = self.execute_query(query, use_cache=use_cache, cache_ttl=cache_ttl)
+                result = pagination_service.paginate_list(full_results, page, page_size)
+            
+            # Cache the paginated result
+            if use_cache:
+                cache_service.set(query, result, ttl=cache_ttl, params=cache_params)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Paginated query execution failed: {str(e)}")
+            raise
+    
+    def execute_query_from_file(
+        self, 
+        file_path: str, 
+        use_cache: bool = True, 
+        cache_ttl: int = 300
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute a SQL query from a file with caching support.
         
         Args:
             file_path (str): Path to the SQL file
+            use_cache (bool): Whether to use caching
+            cache_ttl (int): Cache time-to-live in seconds
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
@@ -112,14 +207,14 @@ class DatabricksClient:
             with open(file_path, 'r', encoding='utf-8') as file:
                 query = file.read()
             
-            logger.info(f"Executing query from file: {file_path}")
-            return self.execute_query(query)
+            logger.info(f"📄 Executing query from file: {file_path}")
+            return self.execute_query(query, use_cache=use_cache, cache_ttl=cache_ttl)
             
         except FileNotFoundError:
-            logger.error(f"SQL file not found: {file_path}")
+            logger.error(f"❌ SQL file not found: {file_path}")
             raise
         except Exception as e:
-            logger.error(f"Error reading SQL file {file_path}: {str(e)}")
+            logger.error(f"❌ Error reading SQL file {file_path}: {str(e)}")
             raise
     
     def test_connection(self) -> bool:

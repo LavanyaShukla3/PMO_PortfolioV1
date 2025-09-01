@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { processProgramData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
@@ -116,7 +116,7 @@ const statusColors = {
 
 // Display3: Monthly grouped milestone processing logic
 // Updated: Now processes only SG3 milestones (filtered in dataService.js)
-const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
+const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, projectEndDate = null) => {
     if (!milestones?.length) return [];
 
     // Display3: Group milestones by month
@@ -139,7 +139,8 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) 
         // Process each milestone in the month
         monthMilestones.forEach((milestone, index) => {
             const milestoneDate = parseDate(milestone.date);
-            const x = calculatePosition(milestoneDate, startDate, monthWidth);
+            // Use the new milestone positioning function that aligns with bar ends
+            const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
 
             // STRICT RULE FIX: Only the first milestone in each month shows the labels
             // This prevents duplicate label rendering for multiple milestones in same month
@@ -175,6 +176,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
     const [responsiveConstants, setResponsiveConstants] = useState(getResponsiveConstants(1.0));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [dataVersion, setDataVersion] = useState(0); // Add version tracking for re-renders
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -232,6 +234,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 const data = await processProgramData(selectedProjectId);
                 setProcessedData(data);
                 setFilteredData(data);
+                setDataVersion(prev => prev + 1); // Increment version to trigger re-render
                 
                 console.log(`✅ Successfully loaded ${data.length} program items from API`);
                 console.log('🔍 Filtered for selected project ID:', selectedProjectId);
@@ -302,32 +305,108 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
         const value = e.target.value;
         setSelectedProgram(value);
 
+        console.log(`🔍 Program filter changed to: "${value}"`);
+
         if (value === 'All') {
             setFilteredData(processedData);
+            console.log(`✅ Showing all data: ${processedData.length} items`);
         } else {
             // Filter to show selected program and its children
             const selectedProgramData = processedData.find(item => 
                 item.isProgram && item.name === value
             );
+            console.log('🔍 Selected program data:', selectedProgramData);
+            
             if (selectedProgramData) {
                 const programAndChildren = processedData.filter(item => 
-                    item.parentId === selectedProgramData.id
+                    item.parentId === selectedProgramData.id || item.id === selectedProgramData.id
                 );
                 setFilteredData(programAndChildren);
+                console.log(`✅ Filtered for "${value}": ${programAndChildren.length} items`);
+                console.log('🔍 Filtered items:', programAndChildren.map(p => ({
+                    name: p.name,
+                    isProgram: p.isProgram,
+                    hasStartDate: !!p.startDate,
+                    hasEndDate: !!p.endDate
+                })));
+            } else {
+                console.log(`❌ Program "${value}" not found in data`);
+                console.log('🔍 Available programs:', processedData.filter(item => item.isProgram).map(p => p.name));
+                setFilteredData([]);
             }
         }
+        
+        setDataVersion(prev => prev + 1); // Force re-render to ensure milestones are properly loaded
     };
 
-    // Apply project scaling based on zoom level
+    // Apply project scaling based on zoom level and create hierarchical grouping for "All" view
     const getScaledFilteredData = () => {
+        let dataToProcess = filteredData;
+        
+        // If showing "All", create hierarchical grouping
+        if (selectedProgram === 'All') {
+            const hierarchicalData = [];
+            
+            // Group by program names
+            const programGroups = {};
+            dataToProcess.forEach(item => {
+                if (item.isProgram) {
+                    // This is a program header
+                    const programName = item.name;
+                    if (!programGroups[programName]) {
+                        programGroups[programName] = {
+                            program: item,
+                            children: []
+                        };
+                    }
+                } else {
+                    // This is a sub-program, find its parent
+                    const parentProgram = dataToProcess.find(p => p.isProgram && p.id === item.parentId);
+                    if (parentProgram) {
+                        const programName = parentProgram.name;
+                        if (!programGroups[programName]) {
+                            programGroups[programName] = {
+                                program: parentProgram,
+                                children: []
+                            };
+                        }
+                        programGroups[programName].children.push(item);
+                    }
+                }
+            });
+            
+            // Create flat list with proper hierarchy: program header + indented children
+            Object.values(programGroups).forEach(group => {
+                // Add program header with special flag
+                hierarchicalData.push({
+                    ...group.program,
+                    isProgramHeader: true,
+                    displayName: `📌 ${group.program.name}`,
+                    originalName: group.program.name
+                });
+                
+                // Add indented children
+                group.children.forEach(child => {
+                    hierarchicalData.push({
+                        ...child,
+                        isChildItem: true,
+                        displayName: `   ${child.name}`, // Indent with spaces
+                        originalName: child.name
+                    });
+                });
+            });
+            
+            dataToProcess = hierarchicalData;
+        }
+        
         const projectScale = responsiveConstants.PROJECT_SCALE;
         if (projectScale >= 1.0) {
             // Zooming out - show more projects (no change needed, show all)
-            return filteredData;
+            return dataToProcess;
         } else {
             // Zooming in - show fewer projects
-            const targetCount = Math.max(1, Math.round(filteredData.length * projectScale));
-            return filteredData.slice(0, targetCount);
+            const targetCount = Math.max(1, Math.round(dataToProcess.length * projectScale));
+            return dataToProcess.slice(0, targetCount);
         }
     };
 
@@ -383,20 +462,33 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
 
     const calculateBarHeight = (project) => {
         const isProgram = project.isProgram;
+        const isProgramHeader = project.isProgramHeader;
         const baseHeight = isProgram ? responsiveConstants.PROGRAM_BAR_HEIGHT : responsiveConstants.BASE_BAR_HEIGHT;
         
         // Calculate height needed for project name wrapping (responsive)
-        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Approximate chars per line
-        const textLines = Math.ceil(project.name.length / maxCharsPerLine);
-        const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
+        const maxCharsPerLine = Math.max(20, responsiveConstants.LABEL_WIDTH / 8); // Minimum 20 chars per line
+        const projectName = project.displayName || project.name || '';
+        const textLines = Math.ceil(projectName.length / maxCharsPerLine);
+        
+        // For program headers, ensure adequate height for wrapped text
+        const lineHeight = Math.round(16 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+        const nameHeight = isProgramHeader ? 
+            Math.max(baseHeight * 2, textLines * lineHeight + 16) : // Extra padding for headers
+            baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
 
         // Calculate height needed for milestone labels (responsive)
         const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
 
         // Return total height needed: name height + milestone label height + responsive padding
         const basePadding = responsiveConstants.ROW_PADDING || 8;
-        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
-        return nameHeight + milestoneLabelHeight + extraPadding;
+        const extraPadding = isProgramHeader ? 
+            Math.round(basePadding * 2) : // Extra padding for headers
+            responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
+        
+        return Math.max(
+            responsiveConstants.TOUCH_TARGET_SIZE, // Minimum touch target size
+            nameHeight + milestoneLabelHeight + extraPadding
+        );
     };
 
     const getTotalHeight = () => {
@@ -646,28 +738,48 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                 .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
                             
                             const isProgram = project.isProgram;
+                            const isProgramHeader = project.isProgramHeader;
+                            const isChildItem = project.isChildItem;
                             
                             return (
                                 <div
-                                    key={project.id}
-                                    className="absolute flex items-center border-b border-gray-100 transition-colors"
+                                    key={`${project.id}-${index}`}
+                                    className={`absolute flex items-center border-b border-gray-100 transition-colors ${
+                                        isProgramHeader 
+                                            ? 'bg-blue-50 border-blue-200' 
+                                            : isProgram 
+                                                ? 'bg-gray-100' 
+                                                : 'bg-white hover:bg-gray-50'
+                                    }`}
                                     style={{
                                         top: yOffset,
                                         height: calculateBarHeight(project),
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
-                                        fontSize: responsiveConstants.FONT_SIZE,
+                                        fontSize: isProgramHeader ? 
+                                            `calc(${responsiveConstants.FONT_SIZE} * 1.1)` : 
+                                            responsiveConstants.FONT_SIZE,
                                         width: '100%',
                                         cursor: 'default',
                                         minHeight: responsiveConstants.TOUCH_TARGET_SIZE,
-                                        background: isProgram ? '#f0f9ff' : 'transparent',
-                                        fontWeight: isProgram ? 600 : 'normal',
-                                        textTransform: isProgram ? 'uppercase' : 'none',
+                                        fontWeight: (isProgram || isProgramHeader) ? 600 : 'normal',
+                                        textTransform: (isProgram || isProgramHeader) ? 'uppercase' : 'none',
                                     }}
                                 >
-                                    <div className="flex items-center justify-between w-full">
-                                        <div className="flex flex-col justify-center">
-                                            <span className="font-medium text-gray-800 pr-2" title={project.name}>
-                                                {isProgram ? '📌 ' : ''}{project.name}
+                                    <div className="flex items-center justify-between w-full h-full">
+                                        <div className="flex flex-col justify-center flex-1 py-2">
+                                            <span className={`pr-2 leading-tight ${
+                                                isProgramHeader ? 'font-bold text-blue-900' :
+                                                isProgram ? 'font-semibold text-gray-800' :
+                                                'font-medium text-gray-700'
+                                            }`} 
+                                            title={project.originalName || project.name}
+                                            style={{
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'break-word',
+                                                lineHeight: '1.2',
+                                                maxWidth: `${responsiveConstants.LABEL_WIDTH - 24}px`
+                                            }}>
+                                                {project.displayName || project.name}
                                             </span>
                                         </div>
                                     </div>
@@ -689,6 +801,7 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                 >
                     <div className="relative" style={{ width: totalWidth }}>
                         <svg
+                            key={`program-gantt-${selectedProgram}-${dataVersion}`} // Add key to force re-render
                             width={totalWidth}
                             style={{
                                 height: Math.max(400, getTotalHeight()),
@@ -720,7 +833,8 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                         parsedEnd: projectEndDate,
                                         startX,
                                         endX,
-                                        width
+                                        width,
+                                        isProgramHeader: project.isProgramHeader
                                     });
                                 }
 
@@ -729,66 +843,72 @@ const ProgramGanttChart = ({ selectedProjectId, selectedProjectName, onBackToPor
                                 const centerY = yOffset + totalHeight / 2;
 
                                 // Process milestones with position information
-                                const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH);
+                                const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
 
                                 const isProgram = project.isProgram;
+                                const isProgramHeader = project.isProgramHeader;
 
                                 return (
-                                    <g key={`project-${project.id}`} className="project-group">
+                                    <g key={`project-${project.id}-${index}`} className="project-group">
                                         {/* Background highlight for program row */}
-                                        {isProgram && (
+                                        {(isProgram || isProgramHeader) && (
                                             <rect
                                                 x={0}
                                                 y={yOffset}
                                                 width={totalWidth}
                                                 height={totalHeight}
-                                                fill="#f0f9ff"
+                                                fill={isProgramHeader ? "#e0f2fe" : "#f0f9ff"}
                                                 opacity={0.5}
                                             />
                                         )}
 
-                                        {/* Render bar - responsive height */}
-                                        <rect
-                                            key={`bar-${project.id}`}
-                                            x={startX}
-                                            y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
-                                            width={Math.max(width, 2)}
-                                            height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                            rx={4}
-                                            fill={project.status ? statusColors[project.status] : statusColors.Grey}
-                                            className="transition-opacity duration-150 hover:opacity-90 cursor-default"
-                                            style={{
-                                                minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
-                                            }}
-                                        />
+                                        {/* Only render Gantt bars and milestones for actual projects with data, not program headers */}
+                                        {!isProgramHeader && projectStartDate && projectEndDate && (
+                                            <>
+                                                {/* Render bar - responsive height with improved milestone alignment */}
+                                                <rect
+                                                    key={`bar-${project.id}`}
+                                                    x={startX}
+                                                    y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
+                                                    width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment
+                                                    height={responsiveConstants.TOUCH_TARGET_SIZE}
+                                                    rx={3} // Reduced border radius for better milestone alignment
+                                                    fill={project.status ? statusColors[project.status] : statusColors.Grey}
+                                                    className="transition-opacity duration-150 hover:opacity-90 cursor-default"
+                                                    style={{
+                                                        minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
+                                                    }}
+                                                />
 
-                                        {/* Render milestones - responsive positioning */}
-                                        {milestones.map((milestone, mIndex) => (
-                                            <MilestoneMarker
-                                                key={`${project.id}-milestone-${mIndex}`}
-                                                x={milestone.x}
-                                                y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
-                                                complete={milestone.status}
-                                                label={milestone.label}
-                                                isSG3={milestone.isSG3}
-                                                labelPosition={milestone.labelPosition}
-                                                shouldWrapText={milestone.shouldWrapText}
-                                                isGrouped={milestone.isGrouped}
-                                                groupLabels={milestone.groupLabels}
-                                                fullLabel={milestone.fullLabel}
-                                                hasAdjacentMilestones={milestone.hasAdjacentMilestones}
-                                                showLabel={milestone.showLabel}
-                                                fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
-                                                isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
-                                                zoomLevel={responsiveConstants.ZOOM_LEVEL}
-                                                // Display3: New props for monthly grouped labels
-                                                isMonthlyGrouped={milestone.isMonthlyGrouped}
-                                                monthlyLabels={milestone.monthlyLabels}
-                                                horizontalLabel={milestone.horizontalLabel}
-                                                verticalLabels={milestone.verticalLabels}
-                                                monthKey={milestone.monthKey}
-                                            />
-                                        ))}
+                                                {/* Render milestones - responsive positioning */}
+                                                {milestones.map((milestone, mIndex) => (
+                                                    <MilestoneMarker
+                                                        key={`${project.id}-milestone-${mIndex}`}
+                                                        x={milestone.x}
+                                                        y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
+                                                        complete={milestone.status}
+                                                        label={milestone.label}
+                                                        isSG3={milestone.isSG3}
+                                                        labelPosition={milestone.labelPosition}
+                                                        shouldWrapText={milestone.shouldWrapText}
+                                                        isGrouped={milestone.isGrouped}
+                                                        groupLabels={milestone.groupLabels}
+                                                        fullLabel={milestone.fullLabel}
+                                                        hasAdjacentMilestones={milestone.hasAdjacentMilestones}
+                                                        showLabel={milestone.showLabel}
+                                                        fontSize={responsiveConstants.MILESTONE_FONT_SIZE}
+                                                        isMobile={responsiveConstants.TOUCH_TARGET_SIZE > 24}
+                                                        zoomLevel={responsiveConstants.ZOOM_LEVEL}
+                                                        // Display3: New props for monthly grouped labels
+                                                        isMonthlyGrouped={milestone.isMonthlyGrouped}
+                                                        monthlyLabels={milestone.monthlyLabels}
+                                                        horizontalLabel={milestone.horizontalLabel}
+                                                        verticalLabels={milestone.verticalLabels}
+                                                        monthKey={milestone.monthKey}
+                                                    />
+                                                ))}
+                                            </>
+                                        )}
                                     </g>
                                 );
                             })}

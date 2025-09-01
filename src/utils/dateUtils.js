@@ -85,6 +85,55 @@ export const getInitialViewportRange = () => {
 };
 
 /**
+ * Calculate X position for a milestone marker
+ * When milestone falls on the end date of a bar, position it flush with the bar's right edge
+ * @param {Date} date - Date to calculate position for
+ * @param {Date} startDate - Timeline start date
+ * @param {number} monthWidth - Width per month in pixels (default: 100)
+ * @param {Date} barEndDate - Optional end date of the related Gantt bar
+ * @returns {number} X-position in pixels
+ */
+export const calculateMilestonePosition = (date, startDate, monthWidth = MONTH_WIDTH, barEndDate = null) => {
+    if (!date || !startDate) {
+        console.warn('❌ Missing date or startDate:', { date, startDate });
+        return 0;
+    }
+
+    const days = differenceInDays(date, startDate);
+    let position = Math.max(0, (days / 30.44) * monthWidth);
+    
+    // If milestone date equals bar end date, adjust position to be flush with bar end
+    if (barEndDate && date.getTime() === barEndDate.getTime()) {
+        const barEndDays = differenceInDays(barEndDate, startDate);
+        const barEndPosition = Math.max(0, (barEndDays / 30.44) * monthWidth);
+        // Position milestone at the exact end of the bar (accounting for bar width)
+        position = barEndPosition;
+        
+        console.log('🎯 Milestone aligned with bar end:', {
+            milestoneDate: date,
+            barEndDate,
+            barEndPosition,
+            adjustedMilestonePosition: position
+        });
+    }
+    
+    // Enhanced debug logging
+    console.log('📍 Milestone position calculation:', {
+        inputDate: date,
+        startDate,
+        barEndDate,
+        daysDifference: days,
+        daysPerMonth: 30.44,
+        monthsFromStart: days / 30.44,
+        monthWidth,
+        calculatedPosition: position,
+        isAlignedWithBarEnd: barEndDate && date.getTime() === barEndDate.getTime()
+    });
+
+    return position;
+};
+
+/**
  * Calculates the x-position for a date on the timeline
  * @param {Date} date - The date to position
  * @param {Date} startDate - Timeline start date
