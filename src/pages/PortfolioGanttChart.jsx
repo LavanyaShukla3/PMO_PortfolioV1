@@ -131,8 +131,8 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
-        // RULE 2: Multiple milestones stacked vertically with 2-month width limit
-        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px');
+        // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
+        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
         // Process each milestone in the month
@@ -140,8 +140,8 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
             const milestoneDate = parseDate(milestone.date);
             const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
 
-            // STRICT RULE FIX: Only the first milestone in each month shows the labels
-            // This prevents duplicate label rendering for multiple milestones in same month
+            // STRICT RULE FIX: Only the first milestone in each month shows the labels AND the shape
+            // This prevents duplicate label rendering AND duplicate shapes for multiple milestones in same month
             const isFirstInMonth = index === 0;
 
             processedMilestones.push({
@@ -157,7 +157,10 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
                 showLabel: true, // Display3: Always show labels
                 shouldWrapText: false,
                 hasAdjacentMilestones: false, // Not used in Display3
-                fullLabel: milestone.label // Keep original label for tooltips
+                fullLabel: milestone.label, // Keep original label for tooltips
+                shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
+                allMilestonesInProject: milestones, // Pass all milestones for ±4 months check
+                currentMilestoneDate: milestoneDate // Pass current date for proximity check
             });
         });
     });
@@ -757,6 +760,10 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                                 horizontalLabel={milestone.horizontalLabel}
                                                 verticalLabels={milestone.verticalLabels}
                                                 monthKey={milestone.monthKey}
+                                                // NEW PROPS for the fixes
+                                                shouldRenderShape={milestone.shouldRenderShape}
+                                                allMilestonesInProject={milestone.allMilestonesInProject}
+                                                currentMilestoneDate={milestone.currentMilestoneDate}
                                             />
                                         ))}
                                     </g>

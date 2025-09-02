@@ -102,17 +102,20 @@ export const calculateMilestonePosition = (date, startDate, monthWidth = MONTH_W
     const days = differenceInDays(date, startDate);
     let position = Math.max(0, (days / 30.44) * monthWidth);
     
-    // If milestone date equals bar end date, adjust position to be flush with bar end
+    // ISSUE FIX: If milestone date equals bar end date, position it within the bar
     if (barEndDate && date.getTime() === barEndDate.getTime()) {
         const barEndDays = differenceInDays(barEndDate, startDate);
         const barEndPosition = Math.max(0, (barEndDays / 30.44) * monthWidth);
-        // Position milestone at the exact end of the bar (accounting for bar width)
-        position = barEndPosition;
         
-        console.log('🎯 Milestone aligned with bar end:', {
+        // Position milestone slightly inside the bar end (subtract half milestone width)
+        const milestoneWidth = 14; // Approximate milestone diamond width
+        position = Math.max(0, barEndPosition - (milestoneWidth / 2));
+        
+        console.log('🎯 Milestone aligned within bar end:', {
             milestoneDate: date,
             barEndDate,
             barEndPosition,
+            milestoneWidth,
             adjustedMilestonePosition: position
         });
     }
@@ -225,19 +228,49 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
 };
 
 /**
- * STRICT RULE 2: Creates vertical stacked milestone labels for a month
+ * STRICT RULE 2: Creates vertical stacked milestone labels for a month with intelligent stretching
  * Task 2: Remove date prefix when there's only one milestone in the month
- * Each milestone label is truncated to fit within 2-month width to prevent overlap
+ * Each milestone label is intelligently truncated based on available timeline space
  * @param {Array} monthMilestones - Array of milestones for a specific month
- * @param {number} maxWidth - Maximum width in pixels (2 months width)
+ * @param {number} maxWidth - Maximum width in pixels (cluster-based, not fixed 2 months)
  * @param {string} fontSize - Font size for width calculation
+ * @param {Array} allProjectMilestones - All milestones in project for intelligent sizing
  * @returns {Array} Array of individual milestone label strings for vertical stacking
  */
-export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px') => {
+export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px', allProjectMilestones = null) => {
     if (!monthMilestones?.length) return [];
 
     // Task 2: Remove date from milestone marker where there is just one milestone in the month
     const isSingleMilestone = monthMilestones.length === 1;
+
+    // IMPROVED: Calculate intelligent max width based on milestone cluster
+    let effectiveMaxWidth = maxWidth;
+    
+    if (allProjectMilestones?.length > 1) {
+        // Find cluster bounds for intelligent sizing
+        const validMilestones = allProjectMilestones
+            .filter(m => m.date)
+            .map(m => ({ ...m, parsedDate: parseDate(m.date) }))
+            .filter(m => m.parsedDate && !isNaN(m.parsedDate.getTime()))
+            .sort((a, b) => a.parsedDate - b.parsedDate);
+        
+        if (validMilestones.length > 1) {
+            const earliestMilestone = validMilestones[0].parsedDate;
+            const latestMilestone = validMilestones[validMilestones.length - 1].parsedDate;
+            const clusterSpanMs = latestMilestone - earliestMilestone;
+            const clusterSpanMonths = clusterSpanMs / (1000 * 60 * 60 * 24 * 30.44);
+            
+            // Use cluster span for width calculation, with reasonable bounds
+            const monthWidth = 100;
+            if (clusterSpanMonths <= 6) {
+                // Small cluster - use full cluster width
+                effectiveMaxWidth = Math.max(2, clusterSpanMonths) * monthWidth;
+            } else {
+                // Large cluster - use generous 6 months max
+                effectiveMaxWidth = 6 * monthWidth;
+            }
+        }
+    }
 
     return monthMilestones.map(milestone => {
         let label;
@@ -254,8 +287,8 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
             label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
         }
 
-        // STRICT TRUNCATION: Any milestone name longer than 2 month's width gets "…"
-        return truncateTextToWidth(label, maxWidth, fontSize);
+        // IMPROVED: Use intelligent truncation based on effective max width
+        return truncateTextToWidth(label, effectiveMaxWidth, fontSize);
     });
 };
 
@@ -305,7 +338,7 @@ export const calculateTextWidth = (text, fontSize = '14px') => {
 };
 
 /**
- * Display3: Truncates text to fit within specified width
+ * Display3: Truncates text to fit within specified width with improved character estimation
  * @param {string} text - Text to truncate
  * @param {number} maxWidth - Maximum width in pixels
  * @param {string} fontSize - Font size for width calculation
@@ -314,16 +347,23 @@ export const calculateTextWidth = (text, fontSize = '14px') => {
 export const truncateTextToWidth = (text, maxWidth, fontSize = '14px') => {
     if (!text) return '';
 
-    const fullWidth = calculateTextWidth(text, fontSize);
+    // Improved character width estimation based on common milestone text patterns
+    const baseFontSize = parseInt(fontSize);
+    const avgCharWidth = baseFontSize * 0.55; // Slightly more accurate for typical text
+    
+    const fullWidth = text.length * avgCharWidth;
     if (fullWidth <= maxWidth) return text;
 
-    const ellipsisWidth = calculateTextWidth('…', fontSize);
+    const ellipsisWidth = 3 * avgCharWidth; // "..." width
     const availableWidth = maxWidth - ellipsisWidth;
 
     if (availableWidth <= 0) return '…';
 
-    const avgCharWidth = calculateTextWidth('a', fontSize);
     const maxChars = Math.floor(availableWidth / avgCharWidth);
+    
+    // Ensure minimum readable length
+    const minChars = 8;
+    const effectiveMaxChars = Math.max(minChars, maxChars);
 
-    return text.substring(0, Math.max(1, maxChars)) + '…';
+    return text.substring(0, effectiveMaxChars) + '…';
 };

@@ -156,6 +156,10 @@ const GanttBar = ({
                     fontSize={fontSize}
                     isMobile={isMobile}
                     zoomLevel={zoomLevel}
+                    // NEW PROPS for the fixes
+                    shouldRenderShape={milestone.shouldRenderShape || true} // Default to true if not specified
+                    allMilestonesInProject={milestone.allMilestonesInProject || milestones}
+                    currentMilestoneDate={milestone.currentMilestoneDate || milestone.date}
                 />
             ))}
         </g>
