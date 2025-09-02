@@ -636,22 +636,38 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             return (
                                 <div
                                     key={project.id}
-                                    className="absolute flex items-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
+                                    className={`absolute flex items-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors ${
+                                        project.isDrillable ? 'cursor-pointer hover:bg-blue-50/50' : 'cursor-default'
+                                    }`}
                                     style={{
                                         top: yOffset,
                                         height: calculateBarHeight(project),
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
                                         fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        cursor: 'default',
                                         minHeight: responsiveConstants.TOUCH_TARGET_SIZE
+                                    }}
+                                    onClick={() => {
+                                        if (project.isDrillable && onDrillToProgram) {
+                                            console.log('🎯 Drilling down to programs for portfolio:', project.id, '-', project.name);
+                                            onDrillToProgram(project.id, project.name);
+                                        }
                                     }}
                                 >
                                     <div className="flex items-center justify-between w-full">
                                         <div className="flex flex-col justify-center">
-                                            <span className="font-medium text-gray-800 pr-2" title={project.name}>
-                                                {project.name || `[No Name - ID: ${project.id}]`}
-                                            </span>
+                                            <div className="flex items-center">
+                                                <span className={`font-medium pr-2 ${
+                                                    project.isDrillable ? 'text-blue-700 hover:text-blue-800' : 'text-gray-800'
+                                                }`} title={project.name}>
+                                                    {project.name || `[No Name - ID: ${project.id}]`}
+                                                </span>
+                                                {project.isDrillable && (
+                                                    <span className="text-blue-600 text-sm ml-1" title="Click to view programs">
+                                                        ↗️
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -53,7 +53,7 @@ const processPortfolioDataFromAPI = async () => {
         // Initialize processed data array
         const processedData = [];
         
-        // Process each PTF group as a portfolio
+        // STEP 1: Process each PTF group as a portfolio (with isDrillable: false by default)
         for (const ptfId of ptfIds) {
             const portfoliosInGroup = portfolioGroups[ptfId];
             console.log(`🔍 Processing PTF group: ${ptfId} with ${portfoliosInGroup.length} portfolios`);
@@ -99,13 +99,35 @@ const processPortfolioDataFromAPI = async () => {
                     sortOrder: investment ? (investment.SortOrder || 0) : 0,
                     isProgram: true, // Keep consistent with program data structure
                     milestones,
-                    hasInvestmentData: !!investment // Flag to indicate if we have timeline data
+                    hasInvestmentData: !!investment, // Flag to indicate if we have timeline data
+                    isDrillable: false // STEP 1: Default to false
                 };
                 
                 processedData.push(portfolioData);
                 console.log('✅ Added portfolio item:', portfolioData.id, '-', portfolioData.name, investment ? '(with investment)' : '(name only)');
             }
         }
+        
+        // STEP 2: Two-Pass Processing - Determine isDrillable based on program relationships
+        // Get all program parent IDs from hierarchy data
+        const programParentIds = new Set(
+            hierarchyData
+                .filter(item => item.COE_ROADMAP_TYPE === 'Program' || item.COE_ROADMAP_TYPE === 'SubProgram')
+                .map(item => item.COE_ROADMAP_PARENT_ID)
+                .filter(Boolean) // Remove null/undefined values
+        );
+        
+        console.log('🔍 Program parent IDs found:', Array.from(programParentIds));
+        
+        // Update isDrillable flag for portfolios that have child programs
+        processedData.forEach(portfolio => {
+            if (programParentIds.has(portfolio.id)) {
+                portfolio.isDrillable = true;
+                console.log('✅ Portfolio is drillable:', portfolio.id, '-', portfolio.name);
+            } else {
+                console.log('❌ Portfolio not drillable (no child programs):', portfolio.id, '-', portfolio.name);
+            }
+        });
         
         console.log('✅ Successfully processed', processedData.length, 'portfolio items from API');
         console.log('🔍 First few items:', processedData.slice(0, 5).map(item => ({

@@ -8,8 +8,8 @@ import './App.css';
 
 function App() {
     const [currentView, setCurrentView] = useState('Portfolio'); // Start with Portfolio view as default
-    const [selectedProjectId, setSelectedProjectId] = useState(null);
-    const [selectedProjectName, setSelectedProjectName] = useState('');
+    const [selectedPortfolioId, setSelectedPortfolioId] = useState(null);
+    const [selectedPortfolioName, setSelectedPortfolioName] = useState('');
     const [selectedSubProgramId, setSelectedSubProgramId] = useState(null);
     const [selectedSubProgramName, setSelectedSubProgramName] = useState('');
     const [dataValidation, setDataValidation] = useState({ 
@@ -107,8 +107,8 @@ function App() {
                                 onChange={(e) => {
                                     setCurrentView(e.target.value);
                                     if (e.target.value === 'Portfolio') {
-                                        setSelectedProjectId(null);
-                                        setSelectedProjectName('');
+                                        setSelectedPortfolioId(null);
+                                        setSelectedPortfolioName('');
                                         setSelectedSubProgramId(null);
                                         setSelectedSubProgramName('');
                                     }
@@ -129,20 +129,20 @@ function App() {
                 <div className="bg-white shadow rounded-lg p-6">
                     {currentView === 'Portfolio' ? (
                         <PortfolioGanttChart
-                            onDrillToProgram={(projectId, projectName) => {
-                                setSelectedProjectId(projectId);
-                                setSelectedProjectName(projectName);
+                            onDrillToProgram={(portfolioId, portfolioName) => {
+                                setSelectedPortfolioId(portfolioId);
+                                setSelectedPortfolioName(portfolioName);
                                 setCurrentView('Program');
                             }}
                         />
                     ) : currentView === 'Program' ? (
                         <ProgramGanttChart
-                            selectedProjectId={selectedProjectId}
-                            selectedProjectName={selectedProjectName}
+                            selectedPortfolioId={selectedPortfolioId}
+                            selectedPortfolioName={selectedPortfolioName}
                             onBackToPortfolio={() => {
                                 setCurrentView('Portfolio');
-                                setSelectedProjectId(null);
-                                setSelectedProjectName('');
+                                setSelectedPortfolioId(null);
+                                setSelectedPortfolioName('');
                             }}
                             onDrillToSubProgram={(subProgramId, subProgramName) => {
                                 // Task 1: Drill-through from Program to SubProgram
@@ -155,7 +155,7 @@ function App() {
                         <SubProgramGanttChart
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
-                            selectedProgramName={selectedProjectName} // Pass program name for breadcrumb
+                            selectedProgramName={selectedPortfolioName} // Pass portfolio name for breadcrumb context
                             onNavigateUp={() => {
                                 setCurrentView('Program');
                                 setSelectedSubProgramId(null);
