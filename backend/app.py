@@ -329,18 +329,23 @@ def get_all_data():
         use_cache = request.args.get('cache', 'true').lower() == 'true'
         logger.info(f"Fetching all data from Databricks (cache={use_cache})...")
         
-        # Execute both queries with caching
-        hierarchy_data = databricks_client.execute_query_from_file(
-            HIERARCHY_QUERY_FILE, 
+        # Read SQL queries from files
+        with open(HIERARCHY_QUERY_FILE, 'r') as f:
+            hierarchy_query = f.read()
+        with open(INVESTMENT_QUERY_FILE, 'r') as f:
+            investment_query = f.read()
+        
+        # Execute both queries with caching - use unlimited to get all records
+        hierarchy_data = databricks_client.execute_query_unlimited(
+            hierarchy_query, 
             use_cache=use_cache, 
             cache_ttl=300
         )
-        investment_data = databricks_client.execute_query_from_file(
-            INVESTMENT_QUERY_FILE, 
+        investment_data = databricks_client.execute_query_unlimited(
+            investment_query, 
             use_cache=use_cache, 
             cache_ttl=300
         )
-        investment_data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
         
         logger.info(f"Successfully fetched {len(hierarchy_data)} hierarchy records and {len(investment_data)} investment records")
         

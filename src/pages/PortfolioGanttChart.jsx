@@ -235,6 +235,18 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     setProcessedData(data);
                     setFilteredData(data);
                     console.log(`✅ Successfully loaded ${data.length} portfolio items from API`);
+                    
+                    // Debug: Log sample data to check structure
+                    console.log('🔍 Sample portfolio data:', data.slice(0, 3).map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        parentName: item.parentName,
+                        startDate: item.startDate,
+                        endDate: item.endDate,
+                        status: item.status,
+                        hasInvestmentData: item.hasInvestmentData,
+                        milestonesCount: item.milestones?.length || 0
+                    })));
 
                     // Initial scroll to show June 2025 to June 2026 (responsive months)
                     setTimeout(() => {
@@ -676,6 +688,22 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
+                                
+                                // Debug logging for date parsing issues
+                                if (!projectStartDate || !projectEndDate) {
+                                    console.log(`⚠️ Invalid dates for project ${project.id} (${project.name}):`, {
+                                        startDate: project.startDate,
+                                        endDate: project.endDate,
+                                        parsedStart: projectStartDate,
+                                        parsedEnd: projectEndDate
+                                    });
+                                }
+                                
+                                // Skip rendering if dates are invalid
+                                if (!projectStartDate || !projectEndDate) {
+                                    return null;
+                                }
+                                
                                 const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;

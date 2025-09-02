@@ -92,7 +92,7 @@ const processPortfolioDataFromAPI = async () => {
                     id: portfolio.CHILD_ID,
                     name: investment ? investment.INVESTMENT_NAME : portfolio.CHILD_NAME, // Use portfolio name if no investment
                     parentId: ptfId, // Use PTF ID as parent
-                    parentName: ptfId, // PTF ID is the portfolio group name
+                    parentName: portfolio.COE_ROADMAP_PARENT_NAME, // Use the actual parent name from hierarchy
                     startDate: investment ? investment.TASK_START : null, // No timeline if no investment
                     endDate: investment ? investment.TASK_FINISH : null,
                     status: investment ? investment.INV_OVERALL_STATUS : 'No Investment Data',

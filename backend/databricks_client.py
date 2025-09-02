@@ -117,6 +117,56 @@ class DatabricksClient:
             logger.error(f"❌ Query execution failed: {str(e)}")
             raise
     
+    def execute_query_unlimited(self, query: str, timeout: int = 900, use_cache: bool = True, cache_ttl: int = 300) -> List[Dict[str, Any]]:
+        """
+        Execute a SQL query without automatic LIMIT addition for large datasets.
+        
+        Args:
+            query (str): The SQL query to execute
+            timeout (int): Query timeout in seconds (default: 900 = 15 minutes)
+            use_cache (bool): Whether to use caching for this query
+            cache_ttl (int): Cache time-to-live in seconds (default 5 minutes)
+            
+        Returns:
+            List[Dict[str, Any]]: Query results as list of dictionaries
+        """
+        # Check cache first if enabled
+        if use_cache:
+            cached_result = cache_service.get(query)
+            if cached_result is not None:
+                return cached_result
+        
+        if not self.connection:
+            self.connect()
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            # Don't add automatic LIMIT for unlimited queries
+            logger.info(f"🔍 Executing unlimited query (length: {len(query)} chars)")
+            cursor.execute(query)
+            
+            # Get column names
+            columns = [desc[0] for desc in cursor.description]
+            
+            # Fetch all results and convert to list of dictionaries
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
+            cursor.close()
+            logger.info(f"✅ Unlimited query executed successfully, returned {len(results)} rows")
+            
+            # Cache the results if caching is enabled
+            if use_cache and results:
+                cache_service.set(query, results, ttl=cache_ttl)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Unlimited query execution failed: {str(e)}")
+            raise
+    
     def execute_paginated_query(
         self, 
         query: str, 
