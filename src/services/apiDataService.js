@@ -472,44 +472,24 @@ export const processSubProgramData = processSubProgramDataFromAPI;
  */
 const fetchInvestmentData = async () => {
     try {
-        console.log('🚀 Fetching all investment data from /api/investments with pagination...');
+        console.log('🚀 Fetching investment data from /api/data...');
         
-        let allData = [];
-        let page = 1;
-        let hasMoreData = true;
-        const perPage = 1000; // Use large page size for efficiency
+        // Use the same endpoint as Portfolio and Program charts
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
         
-        while (hasMoreData) {
-            console.log(`📄 Fetching page ${page} (per_page: ${perPage})...`);
-            
-            const response = await fetch(`/api/investments?page=${page}&per_page=${perPage}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const result = await response.json();
-            
-            if (result.status !== 'success') {
-                throw new Error(result.message || 'Failed to fetch investment data');
-            }
-            
-            // Add this page's data to our collection
-            allData = allData.concat(result.data);
-            console.log(`📊 Page ${page} loaded: ${result.data.length} records (Total so far: ${allData.length})`);
-            
-            // Check if we have more data to fetch
-            // If we got fewer records than requested, we've reached the end
-            hasMoreData = result.data.length === perPage;
-            page++;
-            
-            // Safety check to prevent infinite loops
-            if (page > 100) {
-                console.warn('⚠️ Reached maximum page limit (100). Stopping pagination.');
-                break;
-            }
+        if (result.status !== 'success') {
+            throw new Error(result.message || 'Failed to fetch unified roadmap data');
         }
         
-        console.log('✅ All investment data loaded:', allData.length, 'total records');
-        return allData;
+        // Extract investment data from the structured response
+        const investmentData = result.data.investment;
+        console.log('✅ Investment data loaded:', investmentData.length, 'records');
+        
+        return investmentData;
         
     } catch (error) {
         console.error('❌ Failed to fetch investment data:', error);

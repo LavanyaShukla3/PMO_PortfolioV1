@@ -146,36 +146,43 @@ const RegionRoadMap = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Load filter options on component mount
+    // Load filter options and initial data on component mount
     useEffect(() => {
-        const loadData = async () => {
+        const loadInitialData = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 
-                // DEBUG: Analyze Supply Chain data first
-                console.log('🔍 Starting Supply Chain debug analysis...');
-                await debugSupplyChainData();
+                console.log('� Loading initial region data and filter options...');
                 
+                // Load filter options first
                 const options = await getRegionFilterOptions();
+                console.log('✅ Filter options loaded:', options);
                 setFilterOptions(options);
                 setAvailableMarkets(options.markets);
 
-                // Also load initial data with default filters
-                console.log('Loading initial region data with default filters:', filters);
-                const initialData = await processRegionData(filters);
+                // Load initial data with 'All' filters (show all data)
+                const defaultFilters = {
+                    region: 'All',
+                    market: 'All',
+                    function: 'All',
+                    tier: 'All'
+                };
+                console.log('🔍 Loading initial data with filters:', defaultFilters);
+                const initialData = await processRegionData(defaultFilters);
+                console.log('✅ Initial data loaded:', initialData.length, 'projects');
                 setProcessedData(initialData);
-                console.log('Initial data loaded:', initialData.length, 'projects');
 
             } catch (err) {
-                console.error('Failed to load region filter options or initial data:', err);
-                setError(err.message);
+                console.error('❌ Failed to load initial data:', err);
+                setError(`Failed to load data: ${err.message}`);
+                setProcessedData([]); // Set empty array to prevent undefined errors
             } finally {
                 setLoading(false);
             }
         };
 
-        loadData();
+        loadInitialData();
     }, []); // Only run once on mount
 
     // Handle initial scroll position after data loads and responsive constants are set
@@ -195,55 +202,68 @@ const RegionRoadMap = () => {
     // Update available markets when region changes
     useEffect(() => {
         const updateMarkets = async () => {
+            // Skip if no filter options loaded yet
+            if (filterOptions.markets.length === 0) {
+                console.log('⏳ Skipping market update - no filter options loaded yet');
+                return;
+            }
+
             if (filters.region === 'All') {
+                console.log('🌍 Region set to All - showing all markets');
                 setAvailableMarkets(filterOptions.markets);
             } else {
                 try {
-                    // Filter markets based on selected region
-                    const regionData = await processRegionData({ region: filters.region });
-                    const regionSpecificMarkets = filterOptions.markets.filter(market => {
-                        return regionData.some(project => project.market === market);
+                    console.log('🔍 Filtering markets for region:', filters.region);
+                    // Get all data for the selected region to determine available markets
+                    const regionData = await processRegionData({ 
+                        region: filters.region, 
+                        market: 'All', 
+                        function: 'All', 
+                        tier: 'All' 
                     });
+                    
+                    const regionSpecificMarkets = [...new Set(regionData.map(project => project.market))].filter(Boolean).sort();
+                    console.log('✅ Markets for region', filters.region, ':', regionSpecificMarkets);
                     setAvailableMarkets(regionSpecificMarkets);
 
-                    // Reset market filter if current selection is not available
+                    // Reset market filter if current selection is not available in this region
                     if (filters.market !== 'All' && !regionSpecificMarkets.includes(filters.market)) {
+                        console.log('🔄 Resetting market filter - not available in selected region');
                         setFilters(prev => ({ ...prev, market: 'All' }));
                     }
                 } catch (err) {
-                    console.error('Failed to filter markets by region:', err);
+                    console.error('❌ Failed to filter markets by region:', err);
                     setAvailableMarkets(filterOptions.markets);
                 }
             }
         };
 
-        if (filterOptions.markets.length > 0) {
-            updateMarkets();
-        }
+        updateMarkets();
     }, [filters.region, filterOptions.markets]);
 
-    // Load and process region data when filters change (but not on initial load)
+    // Load data when filters change (after initial load)
     useEffect(() => {
-        const loadRegionData = async () => {
-            // Skip if this is the initial load (handled in the mount effect above)
-            if (loading) return;
+        const loadFilteredData = async () => {
+            // Skip if still loading initial data or no filter options loaded yet
+            if (loading || filterOptions.regions.length === 0) {
+                console.log('⏳ Skipping filter data load - still loading initial data or no filter options');
+                return;
+            }
             
             try {
-                console.log('Loading region data with filters:', filters);
+                console.log('🔍 Loading region data with new filters:', filters);
                 const data = await processRegionData(filters);
+                console.log('✅ Filtered data loaded:', data.length, 'projects');
                 setProcessedData(data);
-                console.log('Filtered data loaded:', data.length, 'projects');
             } catch (err) {
-                console.error('Failed to process region data:', err);
-                setError(err.message);
+                console.error('❌ Failed to process region data with filters:', err);
+                setError(`Failed to filter data: ${err.message}`);
+                setProcessedData([]); // Set empty array on error
             }
         };
 
-        // Only load data when filters change after initial mount
-        if (!loading && filterOptions.regions.length > 0) {
-            loadRegionData();
-        }
-    }, [filters]); // Remove loading and error dependencies to avoid race conditions
+        loadFilteredData();
+    }, [filters, loading, filterOptions.regions.length]); // Include loading and filterOptions in dependencies
 
     // Update responsive constants when zoom level changes
     useEffect(() => {
@@ -588,7 +608,11 @@ const RegionRoadMap = () => {
             </div>
 
             {/* Gantt Chart */}
-            {timelineFilteredData.length === 0 ? (
+            {loading ? (
+                <div className="text-center py-8">
+                    <div className="text-gray-500">Loading projects...</div>
+                </div>
+            ) : timelineFilteredData.length === 0 ? (
                 <div className="flex-1 flex flex-col">
                     {/* Show Timeline Axis even when no data */}
                     <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
@@ -666,10 +690,19 @@ const RegionRoadMap = () => {
                     <div className="text-center py-8 text-gray-500">
                         <div className="mb-2">No projects match the current filters or fall within the timeline range</div>
                         <div className="text-sm text-gray-400">
+                            Raw Data: {data.length} projects | 
                             Processed Data: {processedData.length} projects | 
+                            Timeline Filtered: {timelineFilteredData.length} projects | 
                             Timeline: {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()} |
+                            Loading: {loading ? 'Yes' : 'No'} |
+                            Error: {error ? 'Yes' : 'No'} |
                             Filters: {JSON.stringify(filters)}
                         </div>
+                        {error && (
+                            <div className="text-red-500 text-sm mt-2">
+                                Error: {error}
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
