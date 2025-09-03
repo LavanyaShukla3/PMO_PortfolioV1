@@ -229,7 +229,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             try {
                 setLoading(true);
                 setError(null);
-                console.log('🚀 Loading portfolio data from backend API...');
                 
                 const data = await processPortfolioData();
                 
@@ -237,19 +236,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                 if (isCurrentRequest) {
                     setProcessedData(data);
                     setFilteredData(data);
-                    console.log(`✅ Successfully loaded ${data.length} portfolio items from API`);
-                    
-                    // Debug: Log sample data to check structure
-                    console.log('🔍 Sample portfolio data:', data.slice(0, 3).map(item => ({
-                        id: item.id,
-                        name: item.name,
-                        parentName: item.parentName,
-                        startDate: item.startDate,
-                        endDate: item.endDate,
-                        status: item.status,
-                        hasInvestmentData: item.hasInvestmentData,
-                        milestonesCount: item.milestones?.length || 0
-                    })));
 
                     // Initial scroll to show June 2025 to June 2026 (responsive months)
                     setTimeout(() => {
@@ -257,10 +243,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             // Calculate scroll position to show June 2025 (current month - 2)
                             const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
                             const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
-
-                            console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
-                            console.log('🔍 Timeline container width:', timelineScrollRef.current.offsetWidth);
-                            console.log('🔍 Responsive constants:', responsiveConstants);
 
                             timelineScrollRef.current.scrollLeft = scrollPosition;
                             // Sync gantt scroll position
@@ -270,11 +252,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                         }
                     }, 100);
                 } else {
-                    console.log('⏸️ Discarding stale API response');
+                    // Discarding stale API response
                 }
             } catch (err) {
                 if (isCurrentRequest) {
-                    console.error('❌ Failed to load portfolio data from API:', err);
+                    console.error('Failed to load portfolio data from API:', err);
                     setError(err.message);
                 }
             } finally {
@@ -649,7 +631,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                     }}
                                     onClick={() => {
                                         if (project.isDrillable && onDrillToProgram) {
-                                            console.log('🎯 Drilling down to programs for portfolio:', project.id, '-', project.name);
                                             onDrillToProgram(project.id, project.name);
                                         }
                                     }}
@@ -707,16 +688,6 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
-                                
-                                // Debug logging for date parsing issues
-                                if (!projectStartDate || !projectEndDate) {
-                                    console.log(`⚠️ Invalid dates for project ${project.id} (${project.name}):`, {
-                                        startDate: project.startDate,
-                                        endDate: project.endDate,
-                                        parsedStart: projectStartDate,
-                                        parsedEnd: projectEndDate
-                                    });
-                                }
                                 
                                 // Skip rendering if dates are invalid
                                 if (!projectStartDate || !projectEndDate) {

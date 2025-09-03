@@ -227,18 +227,11 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
             try {
                 setLoading(true);
                 setError(null);
-                console.log('🚀 Loading program data from backend API...');
-                console.log('🔍 Selected Portfolio ID:', selectedPortfolioId);
-                console.log('🔍 Selected Portfolio Name:', selectedPortfolioName);
                 
                 const data = await processProgramData(selectedPortfolioId);
                 setProcessedData(data);
                 setFilteredData(data);
                 setDataVersion(prev => prev + 1); // Increment version to trigger re-render
-                
-                console.log(`✅ Successfully loaded ${data.length} program items from API`);
-                console.log('🔍 Filtered for selected portfolio ID:', selectedPortfolioId);
-                console.log('📊 Program data preview:', data.slice(0, 3));
 
                 // Initial scroll to show June 2025 to June 2026 (responsive months)
                 setTimeout(() => {
@@ -246,8 +239,6 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                         // Calculate scroll position to show June 2025 (current month - 2)
                         const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
                         const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
-
-                        console.log('🔍 Setting scroll position:', scrollPosition, 'to show June 2025 (month 34)');
 
                         timelineScrollRef.current.scrollLeft = scrollPosition;
                         // Sync gantt scroll position
@@ -305,33 +296,20 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
         const value = e.target.value;
         setSelectedProgram(value);
 
-        console.log(`🔍 Program filter changed to: "${value}"`);
-
         if (value === 'All') {
             setFilteredData(processedData);
-            console.log(`✅ Showing all data: ${processedData.length} items`);
         } else {
             // Filter to show selected program and its children
             const selectedProgramData = processedData.find(item => 
                 item.isProgram && item.name === value
             );
-            console.log('🔍 Selected program data:', selectedProgramData);
             
             if (selectedProgramData) {
                 const programAndChildren = processedData.filter(item => 
                     item.parentId === selectedProgramData.id || item.id === selectedProgramData.id
                 );
                 setFilteredData(programAndChildren);
-                console.log(`✅ Filtered for "${value}": ${programAndChildren.length} items`);
-                console.log('🔍 Filtered items:', programAndChildren.map(p => ({
-                    name: p.name,
-                    isProgram: p.isProgram,
-                    hasStartDate: !!p.startDate,
-                    hasEndDate: !!p.endDate
-                })));
             } else {
-                console.log(`❌ Program "${value}" not found in data`);
-                console.log('🔍 Available programs:', processedData.filter(item => item.isProgram).map(p => p.name));
                 setFilteredData([]);
             }
         }

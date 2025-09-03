@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { processRegionData, getRegionFilterOptions, debugSupplyChainData } from '../services/apiDataService';
-import { parseDate, calculatePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { parseDate, calculatePosition, calculateMilestonePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
@@ -157,7 +157,6 @@ const RegionRoadMap = () => {
                 
                 // Load filter options first
                 const options = await getRegionFilterOptions();
-                console.log('✅ Filter options loaded:', options);
                 setFilterOptions(options);
                 setAvailableMarkets(options.markets);
 
@@ -168,13 +167,11 @@ const RegionRoadMap = () => {
                     function: 'All',
                     tier: 'All'
                 };
-                console.log('🔍 Loading initial data with filters:', defaultFilters);
                 const initialData = await processRegionData(defaultFilters);
-                console.log('✅ Initial data loaded:', initialData.length, 'projects');
                 setProcessedData(initialData);
 
             } catch (err) {
-                console.error('❌ Failed to load initial data:', err);
+                console.error('Failed to load initial data:', err);
                 setError(`Failed to load data: ${err.message}`);
                 setProcessedData([]); // Set empty array to prevent undefined errors
             } finally {
@@ -204,16 +201,13 @@ const RegionRoadMap = () => {
         const updateMarkets = async () => {
             // Skip if no filter options loaded yet
             if (filterOptions.markets.length === 0) {
-                console.log('⏳ Skipping market update - no filter options loaded yet');
                 return;
             }
 
             if (filters.region === 'All') {
-                console.log('🌍 Region set to All - showing all markets');
                 setAvailableMarkets(filterOptions.markets);
             } else {
                 try {
-                    console.log('🔍 Filtering markets for region:', filters.region);
                     // Get all data for the selected region to determine available markets
                     const regionData = await processRegionData({ 
                         region: filters.region, 
@@ -223,16 +217,14 @@ const RegionRoadMap = () => {
                     });
                     
                     const regionSpecificMarkets = [...new Set(regionData.map(project => project.market))].filter(Boolean).sort();
-                    console.log('✅ Markets for region', filters.region, ':', regionSpecificMarkets);
                     setAvailableMarkets(regionSpecificMarkets);
 
                     // Reset market filter if current selection is not available in this region
                     if (filters.market !== 'All' && !regionSpecificMarkets.includes(filters.market)) {
-                        console.log('🔄 Resetting market filter - not available in selected region');
                         setFilters(prev => ({ ...prev, market: 'All' }));
                     }
                 } catch (err) {
-                    console.error('❌ Failed to filter markets by region:', err);
+                    console.error('Failed to filter markets by region:', err);
                     setAvailableMarkets(filterOptions.markets);
                 }
             }
@@ -246,17 +238,14 @@ const RegionRoadMap = () => {
         const loadFilteredData = async () => {
             // Skip if still loading initial data or no filter options loaded yet
             if (loading || filterOptions.regions.length === 0) {
-                console.log('⏳ Skipping filter data load - still loading initial data or no filter options');
                 return;
             }
             
             try {
-                console.log('🔍 Loading region data with new filters:', filters);
                 const data = await processRegionData(filters);
-                console.log('✅ Filtered data loaded:', data.length, 'projects');
                 setProcessedData(data);
             } catch (err) {
-                console.error('❌ Failed to process region data with filters:', err);
+                console.error('Failed to process region data with filters:', err);
                 setError(`Failed to filter data: ${err.message}`);
                 setProcessedData([]); // Set empty array on error
             }
@@ -296,11 +285,7 @@ const RegionRoadMap = () => {
 
     // Filter projects to only include those within the timeline range
     const timelineFilteredData = useMemo(() => {
-        console.log('Timeline filtering - Input data:', processedData.length, 'projects');
-        console.log('Timeline range:', startDate, 'to', endDate);
-        
         const filtered = processedData.filter(project => isProjectWithinTimelineRange(project));
-        console.log('Timeline filtering - Output data:', filtered.length, 'projects');
         
         return filtered;
     }, [processedData, startDate, endDate]);
@@ -442,7 +427,7 @@ const RegionRoadMap = () => {
 
     // Display3: Monthly grouped milestone processing function
     // Updated: Now processes only SG3 milestones (filtered in dataService.js)
-    const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100) => {
+    const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, projectEndDate = null) => {
         if (!milestones?.length) return [];
 
         // Display3: Group milestones by month
@@ -465,10 +450,10 @@ const RegionRoadMap = () => {
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {
                 const milestoneDate = parseDate(milestone.date);
-                const x = calculatePosition(milestoneDate, startDate, monthWidth);
+                const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
 
-                // STRICT RULE FIX: Only the first milestone in each month shows the labels
-                // This prevents duplicate label rendering for multiple milestones in same month
+                // STRICT RULE FIX: Only the first milestone in each month shows the labels AND the shape
+                // This prevents duplicate label rendering AND duplicate shapes for multiple milestones in same month
                 const isFirstInMonth = index === 0;
 
                 processedMilestones.push({
@@ -484,7 +469,10 @@ const RegionRoadMap = () => {
                     showLabel: true, // Display3: Always show labels
                     shouldWrapText: false,
                     hasAdjacentMilestones: false, // Not used in Display3
-                    fullLabel: milestone.label // Keep original label for tooltips
+                    fullLabel: milestone.label, // Keep original label for tooltips
+                    shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
+                    allMilestonesInProject: milestones, // Pass all milestones for ±4 months check
+                    currentMilestoneDate: milestoneDate // Pass current date for proximity check
                 });
             });
         });
@@ -689,20 +677,6 @@ const RegionRoadMap = () => {
                     {/* No Data Message */}
                     <div className="text-center py-8 text-gray-500">
                         <div className="mb-2">No projects match the current filters or fall within the timeline range</div>
-                        <div className="text-sm text-gray-400">
-                            Raw Data: {data.length} projects | 
-                            Processed Data: {processedData.length} projects | 
-                            Timeline Filtered: {timelineFilteredData.length} projects | 
-                            Timeline: {startDate?.toLocaleDateString()} - {endDate?.toLocaleDateString()} |
-                            Loading: {loading ? 'Yes' : 'No'} |
-                            Error: {error ? 'Yes' : 'No'} |
-                            Filters: {JSON.stringify(filters)}
-                        </div>
-                        {error && (
-                            <div className="text-red-500 text-sm mt-2">
-                                Error: {error}
-                            </div>
-                        )}
                     </div>
                 </div>
             ) : (
@@ -877,14 +851,21 @@ const RegionRoadMap = () => {
                                             return total + pRowHeight + (responsiveConstants.ROW_PADDING || 8);
                                         }, 0);
 
-                                        const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH);
+                                        // Parse project dates first
+                                        const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                                        const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                                        
+                                        // Process milestones after we have projectEndDate
+                                        const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
+                                        
+                                        // Calculate Y positions to match PortfolioGanttChart alignment  
+                                        const yPos = yOffset + (projectRowHeight / 2) - (responsiveConstants.TOUCH_TARGET_SIZE / 2);
+                                        const milestoneY = yPos + (responsiveConstants.TOUCH_TARGET_SIZE / 2); // Center milestone above bar
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
                                                 {/* Project bars - simplified single bar per project */}
                                                 {(() => {
-                                                    const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
-                                                    const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
                                                     if (!projectStartDate || !projectEndDate) return null;
 
                                                     // Skip projects that don't overlap with timeline range
@@ -896,7 +877,6 @@ const RegionRoadMap = () => {
                                                     const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                     const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                     const width = Math.max(endX - startX, 2); // Minimum 2px width
-                                                    const yPos = yOffset + (projectRowHeight / 2) - (responsiveConstants.TOUCH_TARGET_SIZE / 2);
 
                                                     return (
                                                         <GanttBar
@@ -917,7 +897,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={yOffset + (projectRowHeight / 2)}
+                                                        y={milestoneY}
                                                         complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
@@ -937,6 +917,10 @@ const RegionRoadMap = () => {
                                                         horizontalLabel={milestone.horizontalLabel}
                                                         verticalLabels={milestone.verticalLabels}
                                                         monthKey={milestone.monthKey}
+                                                        // NEW PROPS for the fixes (matching PortfolioGanttChart)
+                                                        shouldRenderShape={milestone.shouldRenderShape}
+                                                        allMilestonesInProject={milestone.allMilestonesInProject}
+                                                        currentMilestoneDate={milestone.currentMilestoneDate}
                                                     />
                                                 ))}
                                             </g>

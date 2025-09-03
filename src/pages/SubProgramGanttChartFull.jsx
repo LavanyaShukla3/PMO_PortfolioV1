@@ -127,10 +127,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             try {
                 setLoading(true);
                 setError(null);
-                console.log('🚀 Loading sub-program data from backend API...');
                 
                 const result = await processSubProgramData();
-                console.log('📊 API returned result:', result);
                 
                 // Get the raw hierarchy data to extract parent names
                 const response = await fetch('/api/data');
@@ -178,9 +176,6 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                 // Create sorted list with "All" first
                 const sortedPrograms = ['All', ...Array.from(uniquePrograms).sort()];
                 setProgramNames(sortedPrograms);
-                
-                // Debug: Log available programs
-                console.log('Available programs in dropdown:', sortedPrograms.slice(0, 10), '...and', sortedPrograms.length - 10, 'more');
                 
                 setData(combinedData);
                 setDataVersion(prev => prev + 1); // Increment data version to force re-render
@@ -273,13 +268,6 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             return project.COE_ROADMAP_PARENT_NAME === selectedProgram || 
                    project.INV_FUNCTION === selectedProgram;
         });
-        
-        // Debug: Log filtered results
-        console.log(`Filtered projects for "${selectedProgram}":`, projects.length, 'projects');
-        if (projects.length === 0) {
-            console.log('No projects found. Available programs in data:', 
-                [...new Set(data.projects?.map(p => p.COE_ROADMAP_PARENT_NAME || p.INV_FUNCTION).filter(Boolean))]);
-        }
     }
 
     // Calculate timeline range from project dates
@@ -504,7 +492,6 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                 
                                                 // Get the phase color based on the task name
                                                 const phaseColor = PHASE_COLORS[phase.TASK_NAME] || PHASE_COLORS['Unphased'];
-                                                console.log(`Phase: ${phase.TASK_NAME}, Color: ${phaseColor}`); // Debug log
                                                 
                                                 return (
                                                     <GanttBar
