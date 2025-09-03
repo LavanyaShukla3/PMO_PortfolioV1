@@ -772,13 +772,15 @@ const RegionRoadMap = () => {
                                                 <div style={{ position: 'relative', height: getScaledFilteredData().reduce((total, project) => {
                         const projectRowHeight = calculateRowHeight(project.name);
                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                    }, 0) }}>
+                    }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}>
                         {getScaledFilteredData().map((project, index) => {
                             const projectRowHeight = calculateRowHeight(project.name);
+                            const rowSpacing = responsiveConstants.ROW_PADDING || 8;
+                            const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
                             const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                 const pRowHeight = calculateRowHeight(p.name);
-                                return total + pRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                            }, 0);
+                                return total + pRowHeight + rowSpacing;
+                            }, topMargin);
                                     return (
                                         <div
                                             key={project.id}
@@ -822,11 +824,11 @@ const RegionRoadMap = () => {
                                     height={getScaledFilteredData().reduce((total, project) => {
                                         const projectRowHeight = calculateRowHeight(project.name);
                                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                                    }, 0)}
+                                    }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                     style={{ height: getScaledFilteredData().reduce((total, project) => {
                                         const projectRowHeight = calculateRowHeight(project.name);
                                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                                    }, 0) }}
+                                    }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}
                                 >
                                     {/* iv. Simple line-based swimlanes for RegionGanttChart */}
                                     {/* Vertical month separator lines - responsive to zoom */}
@@ -839,17 +841,19 @@ const RegionRoadMap = () => {
                                             y2={getScaledFilteredData().reduce((total, project) => {
                                                 const projectRowHeight = calculateRowHeight(project.name);
                                                 return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                                            }, 0)}
+                                            }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                             stroke="rgba(0,0,0,0.1)"
                                             strokeWidth="1"
                                         />
                                     ))}
                                     {getScaledFilteredData().map((project, index) => {
                                         const projectRowHeight = calculateRowHeight(project.name);
+                                        const rowSpacing = responsiveConstants.ROW_PADDING || 8;
+                                        const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
                                         const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                             const pRowHeight = calculateRowHeight(p.name);
-                                            return total + pRowHeight + (responsiveConstants.ROW_PADDING || 8);
-                                        }, 0);
+                                            return total + pRowHeight + rowSpacing;
+                                        }, topMargin);
 
                                         // Parse project dates first
                                         const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
@@ -858,13 +862,15 @@ const RegionRoadMap = () => {
                                         // Process milestones after we have projectEndDate
                                         const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
                                         
-                                        // Calculate Y positions to match PortfolioGanttChart alignment  
-                                        const yPos = yOffset + (projectRowHeight / 2) - (responsiveConstants.TOUCH_TARGET_SIZE / 2);
-                                        const milestoneY = yPos + (responsiveConstants.TOUCH_TARGET_SIZE / 2); // Center milestone above bar
+                                        // Calculate Y positions to match PortfolioGanttChart alignment EXACTLY
+                                        const totalHeight = projectRowHeight; // Use same variable name as PortfolioGanttChart
+                                        const centerY = yOffset + totalHeight / 2;
+                                        const ganttBarY = yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2;
+                                        const milestoneY = centerY; // Use center point for milestones
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
-                                                {/* Project bars - simplified single bar per project */}
+                                                {/* Project bars - match PortfolioGanttChart exact rendering */}
                                                 {(() => {
                                                     if (!projectStartDate || !projectEndDate) return null;
 
@@ -873,31 +879,42 @@ const RegionRoadMap = () => {
                                                         return null;
                                                     }
 
-                                                    // Calculate pixel positions for GanttBar
+                                                    // Calculate pixel positions for bar - exactly like PortfolioGanttChart
                                                     const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                                     const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
-                                                    const width = Math.max(endX - startX, 2); // Minimum 2px width
+                                                    const width = endX - startX;
+
+                                                    // Get status color
+                                                    const statusColors = {
+                                                        'Red': '#ef4444',    // Tailwind red-500
+                                                        'Amber': '#f59e0b',  // Tailwind amber-500  
+                                                        'Green': '#10b981',  // Tailwind emerald-500
+                                                        'Grey': '#9ca3af',    // Tailwind gray-400
+                                                        'Yellow': '#E5DE00'
+                                                    };
 
                                                     return (
-                                                        <GanttBar
-                                                            key={`${project.id}-bar`}
-                                                            data={project}
-                                                            y={yPos}
-                                                            startX={startX}
-                                                            width={width}
+                                                        <rect
+                                                            key={`bar-${project.id}`}
+                                                            x={startX}
+                                                            y={ganttBarY}
+                                                            width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment, minimum 4px
                                                             height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                            label={project.name}
-                                                            status={project.status}
-                                                        />
+                                                            rx={3} // Reduced border radius for better milestone alignment
+                                                            fill={project.status ? statusColors[project.status] : statusColors.Grey}
+                                                            className="transition-opacity duration-150 hover:opacity-90 cursor-default"
+                                                        >
+                                                            <title>{project.name}</title>
+                                                        </rect>
                                                     );
                                                 })()}
 
-                                                {/* Milestones */}
+                                                {/* Milestones - match PortfolioGanttChart positioning */}
                                                 {milestones.map((milestone, milestoneIndex) => (
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={milestoneY}
+                                                        y={centerY} // Use center point for perfect alignment
                                                         complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
