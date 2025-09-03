@@ -80,6 +80,36 @@ export const getInitialViewportRange = () => {
 };
 
 /**
+ * Calculate initial scroll position to show current month - 1
+ * @param {number} monthWidth - Width per month in pixels
+ * @returns {number} Scroll position in pixels
+ */
+export const getInitialScrollPosition = (monthWidth = MONTH_WIDTH) => {
+    // Timeline starts at MONTHS_BEFORE months ago
+    // Current month is at position MONTHS_BEFORE
+    // We want to show (current month - 1), so position (MONTHS_BEFORE - 1)
+    const currentMonthPosition = MONTHS_BEFORE;
+    const targetPosition = currentMonthPosition - 1; // Show previous month (Aug 2025 if current is Sep 2025)
+    return targetPosition * monthWidth;
+};
+
+// Milestone Rules Constants
+const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
+const MAX_LABEL_LENGTH = 5; // Maximum length before truncation
+
+/**
+ * Intelligent label truncation rule from PortfolioGanttChart
+ * @param {string} label - Label to truncate
+ * @param {boolean} hasAdjacentMilestones - Whether there are adjacent milestones
+ * @returns {string} Truncated label
+ */
+export const truncateLabel = (label, hasAdjacentMilestones) => {
+    // Only truncate if there are adjacent milestones and length exceeds max
+    if (!hasAdjacentMilestones || label.length <= MAX_LABEL_LENGTH) return label;
+    return label.substring(0, MAX_LABEL_LENGTH) + '...';
+};
+
+/**
  * Calculate X position for a milestone marker
  * When milestone falls on the end date of a bar, position it flush with the bar's right edge
  * @param {Date} date - Date to calculate position for
@@ -196,38 +226,63 @@ export const createHorizontalMilestoneLabel = (monthMilestones, maxWidth, fontSi
  * @param {Array} allProjectMilestones - All milestones in project for intelligent sizing
  * @returns {Array} Array of individual milestone label strings for vertical stacking
  */
-export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px', allProjectMilestones = null) => {
+export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSize = '14px', allProjectMilestones = null, currentMonthWidth = 100) => {
     if (!monthMilestones?.length) return [];
 
     // Task 2: Remove date from milestone marker where there is just one milestone in the month
     const isSingleMilestone = monthMilestones.length === 1;
 
-    // IMPROVED: Calculate intelligent max width based on milestone cluster
+    // ENHANCED: Calculate intelligent max width based on alternating row system
     let effectiveMaxWidth = maxWidth;
     
     if (allProjectMilestones?.length > 1) {
-        // Find cluster bounds for intelligent sizing
-        const validMilestones = allProjectMilestones
-            .filter(m => m.date)
+        // Get the current month's position (above/below) to determine potential conflicts
+        const firstMilestone = monthMilestones[0];
+        const milestoneDate = parseDate(firstMilestone.date);
+        const currentMonth = milestoneDate ? milestoneDate.getMonth() + 1 : 1; // 1-based month
+        const currentLabelPosition = currentMonth % 2 === 1 ? 'above' : 'below';
+        
+        // Filter to only consider milestones that would be in the same row (same alternating position)
+        const sameRowMilestones = allProjectMilestones
+            .filter(m => m.date && m.date !== firstMilestone.date)
             .map(m => ({ ...m, parsedDate: parseDate(m.date) }))
-            .filter(m => m.parsedDate && !isNaN(m.parsedDate.getTime()))
+            .filter(m => {
+                if (!m.parsedDate || isNaN(m.parsedDate.getTime())) return false;
+                const milestoneMonth = m.parsedDate.getMonth() + 1;
+                const milestoneLabelPosition = milestoneMonth % 2 === 1 ? 'above' : 'below';
+                return milestoneLabelPosition === currentLabelPosition;
+            })
             .sort((a, b) => a.parsedDate - b.parsedDate);
         
-        if (validMilestones.length > 1) {
-            const earliestMilestone = validMilestones[0].parsedDate;
-            const latestMilestone = validMilestones[validMilestones.length - 1].parsedDate;
-            const clusterSpanMs = latestMilestone - earliestMilestone;
-            const clusterSpanMonths = clusterSpanMs / (1000 * 60 * 60 * 24 * 30.44);
+        if (sameRowMilestones.length === 0) {
+            // No conflicts in the same row - can be very generous with width
+            effectiveMaxWidth = 6 * currentMonthWidth; // 6 months of space
+        } else {
+            // Find immediate neighbors in the same row
+            const currentMilestoneDate = milestoneDate;
+            const leftNeighbor = sameRowMilestones
+                .filter(m => m.parsedDate < currentMilestoneDate)
+                .sort((a, b) => b.parsedDate - a.parsedDate)[0];
+            const rightNeighbor = sameRowMilestones
+                .filter(m => m.parsedDate > currentMilestoneDate)
+                .sort((a, b) => a.parsedDate - b.parsedDate)[0];
             
-            // Use cluster span for width calculation, with reasonable bounds
-            const monthWidth = 100;
-            if (clusterSpanMonths <= 6) {
-                // Small cluster - use full cluster width
-                effectiveMaxWidth = Math.max(2, clusterSpanMonths) * monthWidth;
+            // Calculate available space between same-row neighbors
+            let spanMonths;
+            if (!leftNeighbor && !rightNeighbor) {
+                spanMonths = 6; // No neighbors in same row
+            } else if (!leftNeighbor) {
+                const rightSpan = (rightNeighbor.parsedDate - currentMilestoneDate) / (1000 * 60 * 60 * 24 * 30.44);
+                spanMonths = Math.min(rightSpan, 4); // Up to 4 months to the right
+            } else if (!rightNeighbor) {
+                const leftSpan = (currentMilestoneDate - leftNeighbor.parsedDate) / (1000 * 60 * 60 * 24 * 30.44);
+                spanMonths = Math.min(leftSpan, 4); // Up to 4 months to the left
             } else {
-                // Large cluster - use generous 6 months max
-                effectiveMaxWidth = 6 * monthWidth;
+                const totalSpan = (rightNeighbor.parsedDate - leftNeighbor.parsedDate) / (1000 * 60 * 60 * 24 * 30.44);
+                spanMonths = Math.min(totalSpan * 0.8, 6); // 80% of space between neighbors, max 6 months
             }
+            
+            effectiveMaxWidth = Math.max(2, spanMonths) * currentMonthWidth;
         }
     }
 
@@ -246,7 +301,7 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
             label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
         }
 
-        // IMPROVED: Use intelligent truncation based on effective max width
+        // ENHANCED: Use intelligent truncation based on alternating-row-aware max width
         return truncateTextToWidth(label, effectiveMaxWidth, fontSize);
     });
 };

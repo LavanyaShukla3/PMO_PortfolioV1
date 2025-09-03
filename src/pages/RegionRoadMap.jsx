@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { processRegionData, getRegionFilterOptions, debugSupplyChainData } from '../services/apiDataService';
-import { parseDate, calculatePosition, calculateMilestonePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { parseDate, calculatePosition, calculateMilestonePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
@@ -92,22 +92,13 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
     };
 };
 
-// Milestone constants (copied from PortfolioGanttChart)
-const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
-const MAX_LABEL_LENGTH = 5; // Maximum length before truncation
-
 // Milestone label spacing constants (match PortfolioGanttChart)
 const LINE_HEIGHT = 12;
 const LABEL_PADDING = 15; // Padding for labels
 const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels (decreased from default)
 const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels (increased from default)
 
-// Helper function for truncating labels (copied from PortfolioGanttChart)
-const truncateLabel = (label, hasAdjacentMilestones) => {
-    // Only truncate if there are adjacent milestones and length exceeds max
-    if (!hasAdjacentMilestones || label.length <= MAX_LABEL_LENGTH) return label;
-    return label.substring(0, MAX_LABEL_LENGTH) + '...';
-};
+// Note: truncateLabel and milestone constants are now imported from dateUtils.js
 
 const RegionRoadMap = () => {
     // ALL HOOKS MUST BE DECLARED AT THE TOP LEVEL
@@ -185,9 +176,8 @@ const RegionRoadMap = () => {
     // Handle initial scroll position after data loads and responsive constants are set
     useEffect(() => {
         if (!loading && timelineScrollRef.current && responsiveConstants.MONTH_WIDTH) {
-            // Calculate scroll position to show June 2025 (current month - 2)
-            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js
-            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+            // Use utility function to calculate proper scroll position to show current month - 1
+            const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
             timelineScrollRef.current.scrollLeft = scrollPosition;
             // Sync gantt scroll position
             if (ganttScrollRef.current) {
@@ -443,8 +433,8 @@ const RegionRoadMap = () => {
 
             // STRICT RULES: Only vertical stacking allowed, no horizontal layout
             // RULE 1: One milestone label per month with alternating positions
-            // RULE 2: Multiple milestones stacked vertically with 2-month width limit
-            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px');
+            // RULE 2: Multiple milestones stacked vertically with INTELLIGENT WIDTH CALCULATION
+            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
             const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
             // Process each milestone in the month
@@ -468,7 +458,7 @@ const RegionRoadMap = () => {
                     verticalLabels: isFirstInMonth ? verticalLabels : [], // Only first milestone shows vertical labels
                     showLabel: true, // Display3: Always show labels
                     shouldWrapText: false,
-                    hasAdjacentMilestones: false, // Not used in Display3
+                    hasAdjacentMilestones: monthMilestones.length > 1, // TRUE when multiple milestones in same month
                     fullLabel: milestone.label, // Keep original label for tooltips
                     shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
                     allMilestonesInProject: milestones, // Pass all milestones for ±4 months check

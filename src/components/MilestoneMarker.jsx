@@ -43,8 +43,8 @@ const MilestoneMarker = ({
     // The y prop passed should be the center of the bar, so we need to offset by half the milestone size
     const verticalCenterOffset = -size / 2;
 
-    // IMPROVED: Smart label truncation logic with intelligent cluster-based stretching
-    const truncateLabel = (labelText) => {
+    // DYNAMIC WRAPPING: Allow label to stretch between neighboring milestones with alternating row awareness
+    const truncateLabel = (labelText, currentLabelPosition) => {
         if (!labelText || typeof labelText !== 'string') return labelText;
         
         const monthWidth = 100; // Default month width
@@ -67,51 +67,68 @@ const MilestoneMarker = ({
             .filter(m => m.parsedDate && !isNaN(m.parsedDate.getTime()))
             .sort((a, b) => a.parsedDate - b.parsedDate);
         
-        if (validMilestones.length === 0) {
-            // No other milestones - use maximum width (4 months)
-            const maxCharLimit = Math.floor((4 * monthWidth) / 8);
+        // Determine current milestone's label position (above/below)
+        // Use the passed parameter if available, otherwise calculate from month
+        if (!currentLabelPosition) {
+            const currentMonth = currentDate.getMonth() + 1; // 1-based month
+            currentLabelPosition = currentMonth % 2 === 1 ? 'above' : 'below';
+        }
+        
+        // Filter neighbors to only consider those that could potentially collide
+        // Since above/below don't collide, we only need to worry about milestones on the same row
+        const sameRowMilestones = validMilestones.filter(m => {
+            const milestoneMonth = m.parsedDate.getMonth() + 1;
+            const milestoneLabelPosition = milestoneMonth % 2 === 1 ? 'above' : 'below';
+            return milestoneLabelPosition === currentLabelPosition;
+        });
+        
+        if (sameRowMilestones.length === 0) {
+            // No milestones on the same row - since alternating months don't collide,
+            // we can extend generously across multiple months
+            const maxSpanMonths = 6; // Generous space since no collisions on this row
+            const maxCharLimit = Math.floor((maxSpanMonths * monthWidth) / 8);
             return labelText.length <= maxCharLimit ? labelText : labelText.substring(0, maxCharLimit - 3) + '...';
         }
         
-        // Find the milestone cluster bounds (earliest to latest milestone in project)
-        const earliestMilestone = validMilestones[0].parsedDate;
-        const latestMilestone = validMilestones[validMilestones.length - 1].parsedDate;
+        // Find the immediate left and right neighbors on the same row
+        const leftNeighbor = sameRowMilestones
+            .filter(m => m.parsedDate < currentDate)
+            .sort((a, b) => b.parsedDate - a.parsedDate)[0]; // Closest before
         
-        // Calculate cluster span in months
-        const clusterSpanMs = latestMilestone - earliestMilestone;
-        const clusterSpanMonths = clusterSpanMs / (1000 * 60 * 60 * 24 * 30.44);
+        const rightNeighbor = sameRowMilestones
+            .filter(m => m.parsedDate > currentDate)
+            .sort((a, b) => a.parsedDate - b.parsedDate)[0]; // Closest after
         
-        // Determine available width based on cluster analysis
-        let availableWidth;
+        // Calculate available space between same-row neighbors
+        let leftBoundary, rightBoundary;
         
-        if (clusterSpanMonths <= 6) {
-            // Small cluster - labels can extend across the full cluster width
-            availableWidth = Math.max(2, clusterSpanMonths) * monthWidth;
+        if (!leftNeighbor) {
+            // No left neighbor on same row - extend to reasonable left boundary
+            leftBoundary = new Date(currentDate);
+            leftBoundary.setMonth(currentDate.getMonth() - 3); // 3 months back since no conflicts
         } else {
-            // Large cluster - find local constraints around current milestone
-            const sixMonthsBefore = new Date(currentDate);
-            sixMonthsBefore.setMonth(currentDate.getMonth() - 6);
-            const sixMonthsAfter = new Date(currentDate);
-            sixMonthsAfter.setMonth(currentDate.getMonth() + 6);
-            
-            // Find nearest milestones within ±6 months
-            const nearbyMilestones = validMilestones.filter(m => 
-                m.parsedDate >= sixMonthsBefore && m.parsedDate <= sixMonthsAfter
-            );
-            
-            if (nearbyMilestones.length > 0) {
-                const localEarliest = nearbyMilestones[0].parsedDate;
-                const localLatest = nearbyMilestones[nearbyMilestones.length - 1].parsedDate;
-                const localSpanMs = localLatest - localEarliest;
-                const localSpanMonths = Math.max(2, localSpanMs / (1000 * 60 * 60 * 24 * 30.44));
-                
-                // Use local span, but cap at 6 months maximum
-                availableWidth = Math.min(localSpanMonths, 6) * monthWidth;
-            } else {
-                // No nearby milestones - use generous 4 months
-                availableWidth = 4 * monthWidth;
-            }
+            // Use midpoint between current and left neighbor to avoid overlap
+            const midPointMs = (currentDate.getTime() + leftNeighbor.parsedDate.getTime()) / 2;
+            leftBoundary = new Date(midPointMs);
         }
+        
+        if (!rightNeighbor) {
+            // No right neighbor on same row - extend to reasonable right boundary
+            rightBoundary = new Date(currentDate);
+            rightBoundary.setMonth(currentDate.getMonth() + 3); // 3 months forward since no conflicts
+        } else {
+            // Use midpoint between current and right neighbor to avoid overlap
+            const midPointMs = (currentDate.getTime() + rightNeighbor.parsedDate.getTime()) / 2;
+            rightBoundary = new Date(midPointMs);
+        }
+        
+        // Calculate the available span in months
+        const spanMs = rightBoundary - leftBoundary;
+        const spanMonths = spanMs / (1000 * 60 * 60 * 24 * 30.44); // Convert to months
+        
+        // Since we're only considering same-row conflicts, be more generous with space
+        const usableSpanMonths = Math.max(1.5, Math.min(spanMonths, 6)); // Min 1.5 months, max 6 months
+        const availableWidth = usableSpanMonths * monthWidth;
         
         // Calculate character limit and apply truncation
         const charLimit = Math.floor(availableWidth / 8); // ~8 pixels per character
@@ -184,7 +201,7 @@ const MilestoneMarker = ({
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            {truncateLabel(horizontalLabel)}
+                            {truncateLabel(horizontalLabel, labelPosition)}
                         </text>
                     )}
 
@@ -204,7 +221,7 @@ const MilestoneMarker = ({
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            {truncateLabel(labelLine)}
+                            {truncateLabel(labelLine, labelPosition)}
                         </text>
                     ))}
                 </>
@@ -225,7 +242,7 @@ const MilestoneMarker = ({
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            {truncateLabel(label) + (index < groupLabels.length - 1 ? ',' : '')}
+                            {truncateLabel(label, labelPosition) + (index < groupLabels.length - 1 ? ',' : '')}
                         </text>
                     ))
                 ) : (
@@ -244,7 +261,7 @@ const MilestoneMarker = ({
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            {truncateLabel(fullLabel)}
+                            {truncateLabel(fullLabel, labelPosition)}
                         </text>
                     )
                 )

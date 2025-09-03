@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import GanttBar from '../components/GanttBar';
-import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
 import { processSubProgramData } from '../services/apiDataService';
 
 const ZOOM_LEVELS = {
@@ -74,8 +74,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             // Determine label position for this month (odd = above, even = below)
             const labelPosition = getMonthlyLabelPosition(monthKey);
 
-            // Create vertical labels for this month
-            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px');
+            // Create vertical labels for this month with intelligent width calculation
+            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', formattedMilestones, monthWidth);
 
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {
@@ -97,8 +97,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                     verticalLabels: isFirstInMonth ? verticalLabels : [],
                     showLabel: true,
                     shouldWrapText: false,
-                    hasAdjacentMilestones: false,
-                    fullLabel: milestone.label
+                    hasAdjacentMilestones: monthMilestones.length > 1, // TRUE when multiple milestones in same month
+                    fullLabel: milestone.label,
+                    shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
+                    allMilestonesInProject: formattedMilestones, // Pass all milestones for ±4 months check
+                    currentMilestoneDate: milestoneDate // Pass current date for proximity check
                 });
             });
         });
@@ -179,6 +182,18 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                 
                 setData(combinedData);
                 setDataVersion(prev => prev + 1); // Increment data version to force re-render
+                
+                // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
+                setTimeout(() => {
+                    if (scrollContainerRef.current && headerScrollRef.current) {
+                        // Get responsive constants for month width
+                        const constants = getResponsiveConstants();
+                        const scrollPosition = getInitialScrollPosition(constants.MONTH_WIDTH);
+
+                        scrollContainerRef.current.scrollLeft = scrollPosition;
+                        headerScrollRef.current.scrollLeft = scrollPosition;
+                    }
+                }, 100);
                 
             } catch (err) {
                 console.error('❌ Failed to load sub-program data from API:', err);

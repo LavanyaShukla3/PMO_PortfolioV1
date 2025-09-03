@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
 import { processPortfolioData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
@@ -97,8 +97,8 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
     };
 };
 
-const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping
-const MAX_LABEL_LENGTH = 5; // Maximum length before truncation
+const DAYS_THRESHOLD = 16; // Threshold for considering milestones as overlapping - moved to dateUtils.js
+const MAX_LABEL_LENGTH = 5; // Maximum length before truncation - moved to dateUtils.js
 
 const statusColors = {
     'Red': '#ef4444',    // Tailwind red-500
@@ -108,11 +108,7 @@ const statusColors = {
     'Yellow': '#E5DE00'
 };
 
-const truncateLabel = (label, hasAdjacentMilestones) => {
-    // Only truncate if there are adjacent milestones and length exceeds max
-    if (!hasAdjacentMilestones || label.length <= MAX_LABEL_LENGTH) return label;
-    return label.substring(0, MAX_LABEL_LENGTH) + '...';
-};
+// Use centralized truncateLabel function from dateUtils.js
 
 // Updated: Now processes only SG3 milestones (filtered in dataService.js)
 const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, projectEndDate = null) => {
@@ -132,7 +128,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
         // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
-        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones);
+        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
         // Process each milestone in the month
@@ -237,12 +233,11 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     setProcessedData(data);
                     setFilteredData(data);
 
-                    // Initial scroll to show June 2025 to June 2026 (responsive months)
+                    // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
                     setTimeout(() => {
                         if (timelineScrollRef.current) {
-                            // Calculate scroll position to show June 2025 (current month - 2)
-                            const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
-                            const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+                            // Use utility function to calculate proper scroll position
+                            const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
 
                             timelineScrollRef.current.scrollLeft = scrollPosition;
                             // Sync gantt scroll position

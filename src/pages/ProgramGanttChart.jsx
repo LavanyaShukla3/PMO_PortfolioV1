@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
-import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
 import { processProgramData } from '../services/apiDataService';
 import { differenceInDays } from 'date-fns';
 
@@ -132,8 +132,8 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
-        // RULE 2: Multiple milestones stacked vertically with 2-month width limit
-        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px');
+        // RULE 2: Multiple milestones stacked vertically with INTELLIGENT WIDTH CALCULATION
+        const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
         // Process each milestone in the month
@@ -142,8 +142,8 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
             // Use the new milestone positioning function that aligns with bar ends
             const x = calculateMilestonePosition(milestoneDate, startDate, monthWidth, projectEndDate);
 
-            // STRICT RULE FIX: Only the first milestone in each month shows the labels
-            // This prevents duplicate label rendering for multiple milestones in same month
+            // STRICT RULE FIX: Only the first milestone in each month shows the labels AND the shape
+            // This prevents duplicate label rendering AND duplicate shapes for multiple milestones in same month
             const isFirstInMonth = index === 0;
 
             processedMilestones.push({
@@ -158,8 +158,11 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
                 verticalLabels: isFirstInMonth ? verticalLabels : [], // Only first milestone shows vertical labels
                 showLabel: true, // Display3: Always show labels
                 shouldWrapText: false,
-                hasAdjacentMilestones: false, // Not used in Display3
-                fullLabel: milestone.label // Keep original label for tooltips
+                hasAdjacentMilestones: monthMilestones.length > 1, // TRUE when multiple milestones in same month
+                fullLabel: milestone.label, // Keep original label for tooltips
+                shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
+                allMilestonesInProject: milestones, // Pass all milestones for ±4 months check
+                currentMilestoneDate: milestoneDate // Pass current date for proximity check
             });
         });
     });
@@ -233,12 +236,11 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                 setFilteredData(data);
                 setDataVersion(prev => prev + 1); // Increment version to trigger re-render
 
-                // Initial scroll to show June 2025 to June 2026 (responsive months)
+                // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
                 setTimeout(() => {
                     if (timelineScrollRef.current) {
-                        // Calculate scroll position to show June 2025 (current month - 2)
-                        const monthsFromStart = 36; // MONTHS_BEFORE from dateUtils.js (July 2025 is month 36)
-                        const scrollPosition = (monthsFromStart - 2) * responsiveConstants.MONTH_WIDTH; // June 2025 is month 34
+                        // Use utility function to calculate proper scroll position
+                        const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
 
                         timelineScrollRef.current.scrollLeft = scrollPosition;
                         // Sync gantt scroll position
