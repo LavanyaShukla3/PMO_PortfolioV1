@@ -132,9 +132,15 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
-        // RULE 2: Multiple milestones stacked vertically with INTELLIGENT WIDTH CALCULATION
+        // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
+        console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
+        console.log('🎯 Two month width:', twoMonthWidth, 'Month width:', monthWidth);
+        console.log('🎯 All project milestones:', milestones.length);
+        
         const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
+
+        console.log('🎯 Vertical labels result:', verticalLabels);
 
         // Process each milestone in the month
         monthMilestones.forEach((milestone, index) => {
@@ -158,7 +164,7 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
                 verticalLabels: isFirstInMonth ? verticalLabels : [], // Only first milestone shows vertical labels
                 showLabel: true, // Display3: Always show labels
                 shouldWrapText: false,
-                hasAdjacentMilestones: monthMilestones.length > 1, // TRUE when multiple milestones in same month
+                hasAdjacentMilestones: false, // Not used in Display3
                 fullLabel: milestone.label, // Keep original label for tooltips
                 shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
                 allMilestonesInProject: milestones, // Pass all milestones for ±4 months check

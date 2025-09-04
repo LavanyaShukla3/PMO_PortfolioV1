@@ -128,8 +128,14 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
         // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
+        console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
+        console.log('🎯 Two month width:', twoMonthWidth, 'Month width:', monthWidth);
+        console.log('🎯 All project milestones:', milestones.length);
+        
         const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
+
+        console.log('🎯 Vertical labels result:', verticalLabels);
 
         // Process each milestone in the month
         monthMilestones.forEach((milestone, index) => {

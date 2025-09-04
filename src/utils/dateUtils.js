@@ -235,6 +235,9 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
     // ENHANCED: Calculate intelligent max width based on alternating row system
     let effectiveMaxWidth = maxWidth;
     
+    console.log('🔧 createVerticalMilestoneLabels - Input maxWidth:', maxWidth);
+    console.log('🔧 Monthly milestones:', monthMilestones.map(m => m.label));
+    
     if (allProjectMilestones?.length > 1) {
         // Get the current month's position (above/below) to determine potential conflicts
         const firstMilestone = monthMilestones[0];
@@ -242,7 +245,10 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
         const currentMonth = milestoneDate ? milestoneDate.getMonth() + 1 : 1; // 1-based month
         const currentLabelPosition = currentMonth % 2 === 1 ? 'above' : 'below';
         
+        console.log('🔧 Current month:', currentMonth, 'Position:', currentLabelPosition);
+        
         // Filter to only consider milestones that would be in the same row (same alternating position)
+        // BUT exclude milestones from the same month (they don't compete for horizontal space)
         const sameRowMilestones = allProjectMilestones
             .filter(m => m.date && m.date !== firstMilestone.date)
             .map(m => ({ ...m, parsedDate: parseDate(m.date) }))
@@ -250,13 +256,20 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
                 if (!m.parsedDate || isNaN(m.parsedDate.getTime())) return false;
                 const milestoneMonth = m.parsedDate.getMonth() + 1;
                 const milestoneLabelPosition = milestoneMonth % 2 === 1 ? 'above' : 'below';
-                return milestoneLabelPosition === currentLabelPosition;
+                
+                // Only consider milestones in same row AND different months
+                const isSameRow = milestoneLabelPosition === currentLabelPosition;
+                const isDifferentMonth = milestoneMonth !== currentMonth;
+                return isSameRow && isDifferentMonth;
             })
             .sort((a, b) => a.parsedDate - b.parsedDate);
         
+        console.log('🔧 Same row milestones found:', sameRowMilestones.length);
+        
         if (sameRowMilestones.length === 0) {
             // No conflicts in the same row - can be very generous with width
-            effectiveMaxWidth = 6 * currentMonthWidth; // 6 months of space
+            effectiveMaxWidth = 8 * currentMonthWidth; // 8 months of space when no conflicts
+            console.log('🔧 No conflicts! Using generous width:', effectiveMaxWidth);
         } else {
             // Find immediate neighbors in the same row
             const currentMilestoneDate = milestoneDate;
@@ -267,26 +280,32 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
                 .filter(m => m.parsedDate > currentMilestoneDate)
                 .sort((a, b) => a.parsedDate - b.parsedDate)[0];
             
+            console.log('🔧 Left neighbor:', leftNeighbor ? leftNeighbor.parsedDate : 'none');
+            console.log('🔧 Right neighbor:', rightNeighbor ? rightNeighbor.parsedDate : 'none');
+            
             // Calculate available space between same-row neighbors
             let spanMonths;
             if (!leftNeighbor && !rightNeighbor) {
-                spanMonths = 6; // No neighbors in same row
+                spanMonths = 8; // No neighbors in same row, very generous space
             } else if (!leftNeighbor) {
                 const rightSpan = (rightNeighbor.parsedDate - currentMilestoneDate) / (1000 * 60 * 60 * 24 * 30.44);
-                spanMonths = Math.min(rightSpan, 4); // Up to 4 months to the right
+                spanMonths = Math.min(rightSpan, 8); // Up to 8 months to the right when no left neighbor
             } else if (!rightNeighbor) {
                 const leftSpan = (currentMilestoneDate - leftNeighbor.parsedDate) / (1000 * 60 * 60 * 24 * 30.44);
-                spanMonths = Math.min(leftSpan, 4); // Up to 4 months to the left
+                spanMonths = Math.min(leftSpan, 8); // Up to 8 months to the left when no right neighbor
             } else {
                 const totalSpan = (rightNeighbor.parsedDate - leftNeighbor.parsedDate) / (1000 * 60 * 60 * 24 * 30.44);
-                spanMonths = Math.min(totalSpan * 0.8, 6); // 80% of space between neighbors, max 6 months
+                spanMonths = Math.min(totalSpan * 0.8, 8); // 80% of space between neighbors, max 8 months
             }
             
             effectiveMaxWidth = Math.max(2, spanMonths) * currentMonthWidth;
+            console.log('🔧 Calculated span months:', spanMonths, 'Effective max width:', effectiveMaxWidth);
         }
     }
+    
+    console.log('🔧 Final effective max width:', effectiveMaxWidth);
 
-    return monthMilestones.map(milestone => {
+    return monthMilestones.map((milestone, index) => {
         let label;
         if (isSingleMilestone) {
             // Task 2: Single milestone - no date prefix
@@ -301,8 +320,12 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
             label = `${milestone.day}${getOrdinalSuffix(milestone.day)}: ${milestone.label}`;
         }
 
+        console.log(`🔧 Processing milestone ${index + 1}: "${label}" with max width: ${effectiveMaxWidth}`);
+        
         // ENHANCED: Use intelligent truncation based on alternating-row-aware max width
-        return truncateTextToWidth(label, effectiveMaxWidth, fontSize);
+        const result = truncateTextToWidth(label, effectiveMaxWidth, fontSize);
+        console.log(`🔧 Result after truncation: "${result}"`);
+        return result;
     });
 };
 
@@ -361,17 +384,27 @@ export const calculateTextWidth = (text, fontSize = '14px') => {
 export const truncateTextToWidth = (text, maxWidth, fontSize = '14px') => {
     if (!text) return '';
 
+    console.log(`📏 truncateTextToWidth - Text: "${text}", MaxWidth: ${maxWidth}, FontSize: ${fontSize}`);
+
     // Improved character width estimation based on common milestone text patterns
     const baseFontSize = parseInt(fontSize);
     const avgCharWidth = baseFontSize * 0.55; // Slightly more accurate for typical text
     
     const fullWidth = text.length * avgCharWidth;
-    if (fullWidth <= maxWidth) return text;
+    console.log(`📏 Full text width: ${fullWidth}px (${text.length} chars * ${avgCharWidth}px)`);
+    
+    if (fullWidth <= maxWidth) {
+        console.log(`📏 Text fits! Returning full text: "${text}"`);
+        return text;
+    }
 
     const ellipsisWidth = 3 * avgCharWidth; // "..." width
     const availableWidth = maxWidth - ellipsisWidth;
 
-    if (availableWidth <= 0) return '…';
+    if (availableWidth <= 0) {
+        console.log(`📏 No space available, returning single ellipsis`);
+        return '…';
+    }
 
     const maxChars = Math.floor(availableWidth / avgCharWidth);
     
@@ -379,5 +412,7 @@ export const truncateTextToWidth = (text, maxWidth, fontSize = '14px') => {
     const minChars = 8;
     const effectiveMaxChars = Math.max(minChars, maxChars);
 
-    return text.substring(0, effectiveMaxChars) + '…';
+    const result = text.substring(0, effectiveMaxChars) + '…';
+    console.log(`📏 Truncated result: "${result}" (${effectiveMaxChars} chars)`);
+    return result;
 };

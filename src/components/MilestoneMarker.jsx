@@ -76,16 +76,22 @@ const MilestoneMarker = ({
         
         // Filter neighbors to only consider those that could potentially collide
         // Since above/below don't collide, we only need to worry about milestones on the same row
+        // AND exclude milestones from the same month (they stack vertically, not horizontally)
+        const currentMonth = currentDate.getMonth() + 1; // 1-based month
         const sameRowMilestones = validMilestones.filter(m => {
             const milestoneMonth = m.parsedDate.getMonth() + 1;
             const milestoneLabelPosition = milestoneMonth % 2 === 1 ? 'above' : 'below';
-            return milestoneLabelPosition === currentLabelPosition;
+            
+            // Only consider milestones in same row AND different months
+            const isSameRow = milestoneLabelPosition === currentLabelPosition;
+            const isDifferentMonth = milestoneMonth !== currentMonth;
+            return isSameRow && isDifferentMonth;
         });
         
         if (sameRowMilestones.length === 0) {
             // No milestones on the same row - since alternating months don't collide,
             // we can extend generously across multiple months
-            const maxSpanMonths = 6; // Generous space since no collisions on this row
+            const maxSpanMonths = 8; // Very generous space since no collisions on this row
             const maxCharLimit = Math.floor((maxSpanMonths * monthWidth) / 8);
             return labelText.length <= maxCharLimit ? labelText : labelText.substring(0, maxCharLimit - 3) + '...';
         }
@@ -105,7 +111,7 @@ const MilestoneMarker = ({
         if (!leftNeighbor) {
             // No left neighbor on same row - extend to reasonable left boundary
             leftBoundary = new Date(currentDate);
-            leftBoundary.setMonth(currentDate.getMonth() - 3); // 3 months back since no conflicts
+            leftBoundary.setMonth(currentDate.getMonth() - 6); // 6 months back since no conflicts
         } else {
             // Use midpoint between current and left neighbor to avoid overlap
             const midPointMs = (currentDate.getTime() + leftNeighbor.parsedDate.getTime()) / 2;
@@ -115,7 +121,7 @@ const MilestoneMarker = ({
         if (!rightNeighbor) {
             // No right neighbor on same row - extend to reasonable right boundary
             rightBoundary = new Date(currentDate);
-            rightBoundary.setMonth(currentDate.getMonth() + 3); // 3 months forward since no conflicts
+            rightBoundary.setMonth(currentDate.getMonth() + 6); // 6 months forward since no conflicts
         } else {
             // Use midpoint between current and right neighbor to avoid overlap
             const midPointMs = (currentDate.getTime() + rightNeighbor.parsedDate.getTime()) / 2;
@@ -127,7 +133,7 @@ const MilestoneMarker = ({
         const spanMonths = spanMs / (1000 * 60 * 60 * 24 * 30.44); // Convert to months
         
         // Since we're only considering same-row conflicts, be more generous with space
-        const usableSpanMonths = Math.max(1.5, Math.min(spanMonths, 6)); // Min 1.5 months, max 6 months
+        const usableSpanMonths = Math.max(1.5, Math.min(spanMonths, 8)); // Min 1.5 months, max 8 months
         const availableWidth = usableSpanMonths * monthWidth;
         
         // Calculate character limit and apply truncation

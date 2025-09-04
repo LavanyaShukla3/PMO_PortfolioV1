@@ -75,7 +75,13 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             const labelPosition = getMonthlyLabelPosition(monthKey);
 
             // Create vertical labels for this month with intelligent width calculation
+            console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
+            console.log('🎯 Two month width:', twoMonthWidth, 'Month width:', monthWidth);
+            console.log('🎯 All project milestones:', formattedMilestones.length);
+            
             const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', formattedMilestones, monthWidth);
+
+            console.log('🎯 Vertical labels result:', verticalLabels);
 
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {
@@ -97,7 +103,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                     verticalLabels: isFirstInMonth ? verticalLabels : [],
                     showLabel: true,
                     shouldWrapText: false,
-                    hasAdjacentMilestones: monthMilestones.length > 1, // TRUE when multiple milestones in same month
+                    hasAdjacentMilestones: false, // Not used in Display3
                     fullLabel: milestone.label,
                     shouldRenderShape: isFirstInMonth, // NEW: Only render shape for first milestone in month
                     allMilestonesInProject: formattedMilestones, // Pass all milestones for ±4 months check
