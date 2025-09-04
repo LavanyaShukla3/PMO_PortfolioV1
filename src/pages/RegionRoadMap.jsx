@@ -92,11 +92,11 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
     };
 };
 
-// Milestone label spacing constants (match PortfolioGanttChart)
+// Milestone label spacing constants - AGGRESSIVE spacing to prevent overlaps
 const LINE_HEIGHT = 12;
-const LABEL_PADDING = 15; // Padding for labels
-const ABOVE_LABEL_OFFSET = 15; // Space needed above the bar for labels (decreased from default)
-const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels (increased from default)
+const LABEL_PADDING = 40; // Increased from 25 for more aggressive spacing
+const ABOVE_LABEL_OFFSET = 50; // Increased from 35 for more aggressive spacing
+const BELOW_LABEL_OFFSET = 45; // Increased from 30 for more aggressive spacing
 
 // Note: truncateLabel and milestone constants are now imported from dateUtils.js
 
@@ -403,14 +403,61 @@ const RegionRoadMap = () => {
         }
     };
 
-    const calculateRowHeight = (projectName = '') => {
+    // Calculate height needed for milestone labels to prevent overlap with bars
+    const calculateMilestoneLabelHeight = (milestones, monthWidth) => {
+        try {
+            if (!milestones || milestones.length === 0) {
+                return 50; // Minimum spacing even with no milestones
+            }
+
+            // Group milestones by month to calculate height requirements
+            const monthlyGroups = groupMilestonesByMonth(milestones);
+            let maxAboveHeight = 0;
+            let maxBelowHeight = 0;
+
+            Object.entries(monthlyGroups).forEach(([monthKey, monthMilestones]) => {
+                const labelPosition = getMonthlyLabelPosition(monthKey);
+                const stackedLabels = createVerticalMilestoneLabels(
+                    monthMilestones, 
+                    monthWidth * 8, // Allow up to 8 months width
+                    '14px',
+                    milestones,
+                    monthWidth
+                );
+
+                // Calculate height for this month's labels
+                const labelHeight = stackedLabels.split('\n').length * LINE_HEIGHT + LABEL_PADDING;
+
+                if (labelPosition === 'above') {
+                    maxAboveHeight = Math.max(maxAboveHeight, labelHeight + ABOVE_LABEL_OFFSET);
+                } else {
+                    maxBelowHeight = Math.max(maxBelowHeight, labelHeight + BELOW_LABEL_OFFSET);
+                }
+            });
+
+            // Add minimum spacing to ensure adequate separation even with few milestones
+            const totalLabelHeight = maxAboveHeight + maxBelowHeight;
+            const minimumSpacing = 80; // Increased from 50px for more aggressive spacing
+            
+            return Math.max(totalLabelHeight, minimumSpacing);
+        } catch (error) {
+            console.warn('Error calculating milestone label height:', error);
+            return 100; // Increased fallback height from 60px if there's an error
+        }
+    };
+
+    const calculateRowHeight = (projectName = '', milestones = []) => {
         // Responsive row height calculation
         const baseHeight = responsiveConstants.BASE_BAR_HEIGHT || 10;
         const textLines = Math.ceil(projectName.length / 30); // Approximate chars per line
         const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
+        
+        // Calculate height needed for milestone labels to prevent overlap
+        const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
+        
         const basePadding = responsiveConstants.ROW_PADDING || 8;
         const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
-        return nameHeight + extraPadding;
+        return nameHeight + milestoneLabelHeight + extraPadding;
     };
 
     const rowHeight = calculateRowHeight();
@@ -766,15 +813,15 @@ const RegionRoadMap = () => {
                             onScroll={handleLeftPanelScroll}
                         >
                                                 <div style={{ position: 'relative', height: getScaledFilteredData().reduce((total, project) => {
-                        const projectRowHeight = calculateRowHeight(project.name);
+                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}>
                         {getScaledFilteredData().map((project, index) => {
-                            const projectRowHeight = calculateRowHeight(project.name);
+                            const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                             const rowSpacing = responsiveConstants.ROW_PADDING || 8;
                             const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
                             const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
-                                const pRowHeight = calculateRowHeight(p.name);
+                                const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                 return total + pRowHeight + rowSpacing;
                             }, topMargin);
                                     return (
@@ -818,11 +865,11 @@ const RegionRoadMap = () => {
                                 <svg
                                     width={totalWidth}
                                     height={getScaledFilteredData().reduce((total, project) => {
-                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
                                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                     style={{ height: getScaledFilteredData().reduce((total, project) => {
-                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                         return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
                                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}
                                 >
@@ -835,7 +882,7 @@ const RegionRoadMap = () => {
                                             y1="0"
                                             x2={i * responsiveConstants.MONTH_WIDTH}
                                             y2={getScaledFilteredData().reduce((total, project) => {
-                                                const projectRowHeight = calculateRowHeight(project.name);
+                                                const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                                 return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
                                             }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                             stroke="rgba(0,0,0,0.1)"
@@ -843,11 +890,11 @@ const RegionRoadMap = () => {
                                         />
                                     ))}
                                     {getScaledFilteredData().map((project, index) => {
-                                        const projectRowHeight = calculateRowHeight(project.name);
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                         const rowSpacing = responsiveConstants.ROW_PADDING || 8;
                                         const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
                                         const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
-                                            const pRowHeight = calculateRowHeight(p.name);
+                                            const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                             return total + pRowHeight + rowSpacing;
                                         }, topMargin);
 
@@ -862,7 +909,7 @@ const RegionRoadMap = () => {
                                         const totalHeight = projectRowHeight; // Use same variable name as PortfolioGanttChart
                                         const centerY = yOffset + totalHeight / 2;
                                         const ganttBarY = yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2;
-                                        const milestoneY = centerY; // Use center point for milestones
+                                        const milestoneY = ganttBarY + (responsiveConstants.TOUCH_TARGET_SIZE / 2); // Use center of Gantt bar for milestones
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">

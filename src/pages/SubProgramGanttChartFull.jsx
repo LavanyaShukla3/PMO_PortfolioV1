@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import GanttBar from '../components/GanttBar';
-import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
+import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel, processMilestonesForProject } from '../utils/dateUtils';
 import { processSubProgramData } from '../services/apiDataService';
 
 const ZOOM_LEVELS = {
@@ -244,14 +244,78 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
         }
     };
 
+    // Calculate milestone label height to prevent overlap
+    const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
+        if (!milestones?.length) return 0;
+
+        try {
+            // Process milestones to get their positions and grouping info
+            const processedMilestones = processMilestonesForProject(milestones, startDate, monthWidth);
+
+            let maxAboveHeight = 0;
+            let maxBelowHeight = 0;
+            const LINE_HEIGHT = 12;
+            const LABEL_PADDING = 25; // Increased padding for labels
+            const ABOVE_LABEL_OFFSET = 35; // Increased space needed above the bar for labels
+            const BELOW_LABEL_OFFSET = 30; // Increased space needed below the bar for labels
+
+            processedMilestones.forEach(milestone => {
+                if (milestone.isMonthlyGrouped) {
+                    // Monthly grouped milestones - height depends on layout type
+                    let labelHeight;
+                    if (milestone.horizontalLabel) {
+                        // Horizontal layout: single line
+                        labelHeight = LINE_HEIGHT;
+                    } else if (milestone.verticalLabels?.length) {
+                        // Vertical layout: multiple lines
+                        labelHeight = milestone.verticalLabels.length * LINE_HEIGHT;
+                    } else {
+                        labelHeight = LINE_HEIGHT; // Fallback
+                    }
+
+                    if (milestone.labelPosition === 'above') {
+                        maxAboveHeight = Math.max(maxAboveHeight, labelHeight + ABOVE_LABEL_OFFSET);
+                    } else {
+                        maxBelowHeight = Math.max(maxBelowHeight, labelHeight + BELOW_LABEL_OFFSET);
+                    }
+                } else if (milestone.isGrouped) {
+                    // Legacy grouped milestones
+                    const groupHeight = milestone.groupLabels.length * LINE_HEIGHT;
+                    maxBelowHeight = Math.max(maxBelowHeight, groupHeight + LABEL_PADDING);
+                } else {
+                    // Individual milestones
+                    maxBelowHeight = Math.max(maxBelowHeight, LINE_HEIGHT + LABEL_PADDING);
+                }
+            });
+
+            // Add minimum spacing to ensure adequate separation even with few milestones
+            const totalLabelHeight = maxAboveHeight + maxBelowHeight;
+            const minimumSpacing = 50; // Minimum 50px spacing for milestone labels
+            
+            return Math.max(totalLabelHeight, minimumSpacing);
+        } catch (error) {
+            console.warn('Error calculating milestone label height:', error);
+            return 60; // Increased fallback height if there's an error
+        }
+    };
+
     // Calculate row height for each project (matching PortfolioGanttChart logic)
-    const calculateBarHeight = (project) => {
+    const calculateBarHeight = (project, processedMilestones = null) => {
         // For SubProgramGanttChart, we want consistent row heights
         // that work well with the GanttBar component centering logic
         const baseHeight = constants.TOUCH_TARGET_SIZE;
         const minHeight = Math.max(baseHeight, 32);
-        // Don't add ROW_PADDING here - it's used for spacing between rows, not row height
-        return Math.max(minHeight, baseHeight);
+        
+        // Calculate height needed for milestone labels to prevent overlap
+        let milestoneLabelHeight = 0;
+        if (processedMilestones?.length > 0) {
+            milestoneLabelHeight = calculateMilestoneLabelHeight(processedMilestones, constants.MONTH_WIDTH);
+        } else if (project?.milestones?.length > 0) {
+            milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, constants.MONTH_WIDTH);
+        }
+        
+        // Return total height needed: base height + milestone label height
+        return Math.max(minHeight, baseHeight + milestoneLabelHeight);
     };
 
     if (loading) {
@@ -420,14 +484,42 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                     {/* Project Rows */}
                     <div style={{ position: 'relative', height: allProjectRows.length * (calculateBarHeight({}) + constants.ROW_PADDING) + 50 }}>
                         {allProjectRows.map((row, index) => {
-                            const rowHeight = calculateBarHeight(row);
+                            // Process milestones first to get accurate height calculation
+                            const projectEndDate = row.phases.reduce((latest, phase) => {
+                                const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                            }, null);
+                            
+                            const processedMilestones = processMilestonesForProject(
+                                row.projectMilestones || [],
+                                startDate,
+                                constants.MONTH_WIDTH,
+                                projectEndDate
+                            );
+                            
+                            const rowHeight = calculateBarHeight(row, processedMilestones);
                             const rowSpacing = constants.ROW_PADDING || 8;
                             const topMargin = Math.round(10 * zoomLevel);
                             
                             // Calculate cumulative Y offset to match Gantt bars
                             const yOffset = allProjectRows
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
+                                .reduce((total, p, i) => {
+                                    // Process milestones for previous rows for accurate height calculation
+                                    const prevProjectEndDate = p.phases.reduce((latest, phase) => {
+                                        const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                        return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                                    }, null);
+                                    
+                                    const prevProcessedMilestones = processMilestonesForProject(
+                                        p.projectMilestones || [],
+                                        startDate,
+                                        constants.MONTH_WIDTH,
+                                        prevProjectEndDate
+                                    );
+                                    
+                                    return total + calculateBarHeight(p, prevProcessedMilestones) + rowSpacing;
+                                }, topMargin);
                             
                             return (
                                 <div
@@ -485,19 +577,66 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                             <svg 
                                 key={`gantt-${selectedProgram}-${dataVersion}`} // Add key to force re-render
                                 width={timelineWidth} 
-                                height={allProjectRows.length * (calculateBarHeight({}) + constants.ROW_PADDING)}
+                                height={allProjectRows.reduce((total, row) => {
+                                    // Process milestones for accurate height calculation
+                                    const projectEndDate = row.phases.reduce((latest, phase) => {
+                                        const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                        return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                                    }, null);
+                                    
+                                    const processedMilestones = processMilestonesForProject(
+                                        row.projectMilestones || [],
+                                        startDate,
+                                        constants.MONTH_WIDTH,
+                                        projectEndDate
+                                    );
+                                    
+                                    return total + calculateBarHeight(row, processedMilestones) + constants.ROW_PADDING;
+                                }, 0)}
                             >
                                 {allProjectRows.map((row, index) => {
+                                    // Process milestones first to get accurate height calculation
+                                    const projectEndDate = row.phases.reduce((latest, phase) => {
+                                        const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                        return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                                    }, null);
+                                    
+                                    const processedMilestones = processMilestonesForProject(
+                                        row.projectMilestones || [],
+                                        startDate,
+                                        constants.MONTH_WIDTH,
+                                        projectEndDate
+                                    );
+
                                     // Calculate proper Y offset using PortfolioGanttChart logic
                                     const rowSpacing = constants.ROW_PADDING || 8;
                                     const topMargin = Math.round(10 * zoomLevel);
                                     const yOffset = allProjectRows
                                         .slice(0, index)
-                                        .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
+                                        .reduce((total, p, i) => {
+                                            // Process milestones for each previous row for accurate height calculation
+                                            const prevProjectEndDate = p.phases.reduce((latest, phase) => {
+                                                const phaseEndDate = parseDate(phase.TASK_FINISH);
+                                                return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
+                                            }, null);
+                                            
+                                            const prevProcessedMilestones = processMilestonesForProject(
+                                                p.projectMilestones || [],
+                                                startDate,
+                                                constants.MONTH_WIDTH,
+                                                prevProjectEndDate
+                                            );
+                                            
+                                            return total + calculateBarHeight(p, prevProcessedMilestones) + rowSpacing;
+                                        }, topMargin);
                                     
                                     // Calculate the project's total height and center point
-                                    const totalHeight = calculateBarHeight(row);
+                                    const totalHeight = calculateBarHeight(row, processedMilestones);
                                     const centerY = yOffset + totalHeight / 2;
+                                    
+                                    // CRITICAL FIX: Center GanttBar within the total row height
+                                    // This matches how PortfolioGanttChart positions its bars
+                                    const centeredY = yOffset + (totalHeight - constants.TOUCH_TARGET_SIZE) / 2;
                                     
                                     return (
                                         <g key={`${row.PROJECT_ID}-${index}`}>
@@ -523,7 +662,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                             name: `${row.PROJECT_NAME} - ${phase.TASK_NAME}`
                                                         }}
                                                         startX={x}
-                                                        y={yOffset}
+                                                        y={centeredY}
                                                         width={width}
                                                         label={`${phase.TASK_NAME}`}
                                                         status={row.STATUS}
@@ -536,26 +675,35 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                 );
                                             })}
                                             
-                                            {/* Render Milestones using PortfolioGanttChart logic */}
-                                            {(() => {
-                                                // Calculate project end date from phases
-                                                const projectEndDate = row.phases.reduce((latest, phase) => {
-                                                    const phaseEndDate = parseDate(phase.TASK_FINISH);
-                                                    return (phaseEndDate && (!latest || phaseEndDate > latest)) ? phaseEndDate : latest;
-                                                }, null);
+                                            {/* Render Milestones using already processed milestone data */}
+                                            {processedMilestones.map((milestone, milestoneIndex) => {
+                                                // SPACING FIX: Account for the larger spacing constants we're using
+                                                // The row height includes extra space (ABOVE_LABEL_OFFSET=35, BELOW_LABEL_OFFSET=30)
+                                                // But MilestoneMarker uses smaller hardcoded offsets (above=20, below=14)
+                                                // We need to position the marker to use the allocated space properly
                                                 
-                                                const processedMilestones = processMilestonesForProject(
-                                                    row.projectMilestones || [],
-                                                    startDate,
-                                                    constants.MONTH_WIDTH,
-                                                    projectEndDate
-                                                );
+                                                const ABOVE_LABEL_OFFSET = 35;
+                                                const BELOW_LABEL_OFFSET = 30;
+                                                const MILESTONE_HARDCODED_ABOVE = 20;
+                                                const MILESTONE_HARDCODED_BELOW = 14;
                                                 
-                                                return processedMilestones.map((milestone, milestoneIndex) => (
+                                                // Adjust marker position to account for spacing difference
+                                                let adjustedBarCenterY = centeredY + (constants.TOUCH_TARGET_SIZE / 2);
+                                                
+                                                // If this milestone has labels below (most common), shift up slightly
+                                                if (milestone.labelPosition === 'below') {
+                                                    const spacingDifference = BELOW_LABEL_OFFSET - MILESTONE_HARDCODED_BELOW;
+                                                    adjustedBarCenterY -= spacingDifference / 4; // Small adjustment
+                                                } else if (milestone.labelPosition === 'above') {
+                                                    const spacingDifference = ABOVE_LABEL_OFFSET - MILESTONE_HARDCODED_ABOVE;
+                                                    adjustedBarCenterY += spacingDifference / 4; // Small adjustment
+                                                }
+                                                
+                                                return (
                                                     <MilestoneMarker
                                                         key={`milestone-${row.PROJECT_ID}-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={yOffset + (totalHeight - constants.TOUCH_TARGET_SIZE) / 2 + (constants.TOUCH_TARGET_SIZE / 2)}
+                                                        y={adjustedBarCenterY}
                                                         complete={milestone.status}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
@@ -567,16 +715,16 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                         hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                         showLabel={milestone.showLabel}
                                                         fontSize={constants.MILESTONE_FONT_SIZE}
-                                                        isMobile={false}
-                                                        zoomLevel={zoomLevel}
-                                                        isMonthlyGrouped={milestone.isMonthlyGrouped}
-                                                        monthlyLabels={[]}
-                                                        horizontalLabel={milestone.horizontalLabel}
-                                                        verticalLabels={milestone.verticalLabels}
-                                                        monthKey={milestone.monthKey}
-                                                    />
-                                                ));
-                                            })()}
+                                                    isMobile={false}
+                                                    zoomLevel={zoomLevel}
+                                                    isMonthlyGrouped={milestone.isMonthlyGrouped}
+                                                    monthlyLabels={[]}
+                                                    horizontalLabel={milestone.horizontalLabel}
+                                                    verticalLabels={milestone.verticalLabels}
+                                                    monthKey={milestone.monthKey}
+                                                />
+                                                );
+                                            })}
                                         </g>
                                     );
                                 })}
