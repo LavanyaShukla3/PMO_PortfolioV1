@@ -235,7 +235,8 @@ export const createVerticalMilestoneLabels = (monthMilestones, maxWidth, fontSiz
     // ENHANCED: Calculate intelligent max width based on alternating row system
     let effectiveMaxWidth = maxWidth;
     
-    console.log('🔧 createVerticalMilestoneLabels - Input maxWidth:', maxWidth);
+    console.log('🔧 createVerticalMilestoneLabels - ENTRY');
+    console.log('🔧 Input maxWidth:', maxWidth, 'Current month width:', currentMonthWidth);
     console.log('🔧 Monthly milestones:', monthMilestones.map(m => m.label));
     
     if (allProjectMilestones?.length > 1) {

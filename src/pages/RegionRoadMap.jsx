@@ -422,7 +422,7 @@ const RegionRoadMap = () => {
 
         // Display3: Group milestones by month
         const monthlyGroups = groupMilestonesByMonth(milestones);
-        const twoMonthWidth = monthWidth * 2; // Maximum width for label blocks
+        const maxInitialWidth = monthWidth * 8; // Allow intelligent calculation up to 8 months
 
         const processedMilestones = [];
 
@@ -435,10 +435,10 @@ const RegionRoadMap = () => {
             // RULE 1: One milestone label per month with alternating positions
             // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
             console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
-            console.log('🎯 Two month width:', twoMonthWidth, 'Month width:', monthWidth);
+            console.log('🎯 Max initial width:', maxInitialWidth, 'Month width:', monthWidth);
             console.log('🎯 All project milestones:', milestones.length);
             
-            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, twoMonthWidth, '14px', milestones, monthWidth);
+            const verticalLabels = createVerticalMilestoneLabels(monthMilestones, maxInitialWidth, '14px', milestones, monthWidth);
             const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
             console.log('🎯 Vertical labels result:', verticalLabels);
