@@ -320,8 +320,10 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                 <div className="text-lg text-gray-600">Loading sub-program data...</div>
+                <div className="text-sm text-gray-500 mt-2">Processing complex queries from Databricks (this may take a few minutes)</div>
             </div>
         );
     }
@@ -677,33 +679,16 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                             
                                             {/* Render Milestones using already processed milestone data */}
                                             {processedMilestones.map((milestone, milestoneIndex) => {
-                                                // SPACING FIX: Account for the larger spacing constants we're using
-                                                // The row height includes extra space (ABOVE_LABEL_OFFSET=35, BELOW_LABEL_OFFSET=30)
-                                                // But MilestoneMarker uses smaller hardcoded offsets (above=20, below=14)
-                                                // We need to position the marker to use the allocated space properly
-                                                
-                                                const ABOVE_LABEL_OFFSET = 35;
-                                                const BELOW_LABEL_OFFSET = 30;
-                                                const MILESTONE_HARDCODED_ABOVE = 20;
-                                                const MILESTONE_HARDCODED_BELOW = 14;
-                                                
-                                                // Adjust marker position to account for spacing difference
-                                                let adjustedBarCenterY = centeredY + (constants.TOUCH_TARGET_SIZE / 2);
-                                                
-                                                // If this milestone has labels below (most common), shift up slightly
-                                                if (milestone.labelPosition === 'below') {
-                                                    const spacingDifference = BELOW_LABEL_OFFSET - MILESTONE_HARDCODED_BELOW;
-                                                    adjustedBarCenterY -= spacingDifference / 4; // Small adjustment
-                                                } else if (milestone.labelPosition === 'above') {
-                                                    const spacingDifference = ABOVE_LABEL_OFFSET - MILESTONE_HARDCODED_ABOVE;
-                                                    adjustedBarCenterY += spacingDifference / 4; // Small adjustment
-                                                }
+                                                // EXACT SAME LOGIC AS PORTFOLIOGANTTCHART
+                                                // Position milestone at: yOffset + (totalHeight - TOUCH_TARGET_SIZE) / 2 + (TOUCH_TARGET_SIZE / 2)
+                                                // This ensures perfect alignment and no overlaps
+                                                const milestoneY = Math.round(yOffset + (totalHeight - constants.TOUCH_TARGET_SIZE) / 2 + (constants.TOUCH_TARGET_SIZE / 2));
                                                 
                                                 return (
                                                     <MilestoneMarker
                                                         key={`milestone-${row.PROJECT_ID}-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={adjustedBarCenterY}
+                                                        y={milestoneY}
                                                         complete={milestone.status}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}

@@ -87,8 +87,8 @@ def get_hierarchy_data():
     try:
         logger.info("Fetching hierarchy data from Databricks...")
         
-        # Execute the hierarchy query
-        data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        # Execute the hierarchy query with extended timeout and cache
+        data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE, timeout=1200, cache_ttl=1800)
         
         logger.info(f"Successfully fetched {len(data)} hierarchy records")
         
@@ -125,8 +125,8 @@ def get_investment_data():
     try:
         logger.info("Fetching investment data from Databricks...")
         
-        # Execute the investment query
-        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
+        # Execute the investment query with extended timeout and cache
+        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE, timeout=1200, cache_ttl=1800)
         
         logger.info(f"Successfully fetched {len(data)} investment records")
         
@@ -163,8 +163,8 @@ def get_portfolios():
     try:
         logger.info("Fetching portfolio data from Databricks...")
         
-        # Execute the hierarchy query and filter for Portfolio type
-        hierarchy_data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE)
+        # Execute the hierarchy query and filter for Portfolio type with extended timeout
+        hierarchy_data = databricks_client.execute_query_from_file(HIERARCHY_QUERY_FILE, timeout=1200, cache_ttl=1800)
         portfolio_data = [item for item in hierarchy_data if item.get('COE_ROADMAP_TYPE') == 'Portfolio']
         
         logger.info(f"Successfully fetched {len(portfolio_data)} portfolio records (filtered from {len(hierarchy_data)} total)")
@@ -194,8 +194,8 @@ def get_investments():
     try:
         logger.info("Fetching investment data from Databricks...")
         
-        # Execute the investment query
-        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE)
+        # Execute the investment query with extended timeout
+        data = databricks_client.execute_query_from_file(INVESTMENT_QUERY_FILE, timeout=1200, cache_ttl=1800)
         
         logger.info(f"Successfully fetched {len(data)} investment records")
         

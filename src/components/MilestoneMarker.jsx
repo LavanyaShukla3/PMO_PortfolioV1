@@ -184,11 +184,11 @@ const MilestoneMarker = ({
             {/* Diamond shape - Only render if shouldRenderShape is true (one per month) */}
             {shouldRenderShape && (
                 <rect 
-                    x={x} 
-                    y={y + yOffset + verticalCenterOffset} 
+                    x={Math.round(x)} 
+                    y={Math.round(y + yOffset + verticalCenterOffset)} 
                     width={size} 
                     height={size} 
-                    transform={`rotate(45, ${x + size / 2}, ${y + yOffset + verticalCenterOffset + size / 2})`}
+                    transform={`rotate(45, ${Math.round(x + size / 2)}, ${Math.round(y + yOffset + verticalCenterOffset + size / 2)})`}
                     fill={isGrouped ? 'black' : (isComplete ? '#005CB9' : 'white')}
                     stroke={isGrouped ? 'white' : '#005CB9'}
                     strokeWidth={2}

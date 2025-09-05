@@ -62,16 +62,16 @@ class DatabricksClient:
             self.connection = None
             logger.info("Disconnected from Databricks")
     
-    def execute_query(self, query: str, timeout: int = 300, use_cache: bool = True, cache_ttl: int = 300) -> List[Dict[str, Any]]:
+    def execute_query(self, query: str, timeout: int = 600, use_cache: bool = True, cache_ttl: int = 1800) -> List[Dict[str, Any]]:
         """
         Execute a SQL query and return results as a list of dictionaries.
         Enhanced with caching support.
         
         Args:
             query (str): The SQL query to execute
-            timeout (int): Query timeout in seconds (default: 300 = 5 minutes)
+            timeout (int): Query timeout in seconds (default: 600 = 10 minutes)
             use_cache (bool): Whether to use caching for this query
-            cache_ttl (int): Cache time-to-live in seconds (default 5 minutes)
+            cache_ttl (int): Cache time-to-live in seconds (default 30 minutes)
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
@@ -80,6 +80,7 @@ class DatabricksClient:
         if use_cache:
             cached_result = cache_service.get(query)
             if cached_result is not None:
+                logger.info(f"🚀 Cache hit! Returning {len(cached_result)} cached rows")
                 return cached_result
         
         if not self.connection:
@@ -117,15 +118,15 @@ class DatabricksClient:
             logger.error(f"❌ Query execution failed: {str(e)}")
             raise
     
-    def execute_query_unlimited(self, query: str, timeout: int = 900, use_cache: bool = True, cache_ttl: int = 300) -> List[Dict[str, Any]]:
+    def execute_query_unlimited(self, query: str, timeout: int = 1200, use_cache: bool = True, cache_ttl: int = 1800) -> List[Dict[str, Any]]:
         """
         Execute a SQL query without automatic LIMIT addition for large datasets.
         
         Args:
             query (str): The SQL query to execute
-            timeout (int): Query timeout in seconds (default: 900 = 15 minutes)
+            timeout (int): Query timeout in seconds (default: 1200 = 20 minutes)
             use_cache (bool): Whether to use caching for this query
-            cache_ttl (int): Cache time-to-live in seconds (default 5 minutes)
+            cache_ttl (int): Cache time-to-live in seconds (default 30 minutes)
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
@@ -134,6 +135,7 @@ class DatabricksClient:
         if use_cache:
             cached_result = cache_service.get(query)
             if cached_result is not None:
+                logger.info(f"🚀 Cache hit! Returning {len(cached_result)} cached rows")
                 return cached_result
         
         if not self.connection:
@@ -239,16 +241,18 @@ class DatabricksClient:
     def execute_query_from_file(
         self, 
         file_path: str, 
+        timeout: int = 600,
         use_cache: bool = True, 
-        cache_ttl: int = 300
+        cache_ttl: int = 1800
     ) -> List[Dict[str, Any]]:
         """
         Execute a SQL query from a file with caching support.
         
         Args:
             file_path (str): Path to the SQL file
+            timeout (int): Query timeout in seconds (default: 600 = 10 minutes)
             use_cache (bool): Whether to use caching
-            cache_ttl (int): Cache time-to-live in seconds
+            cache_ttl (int): Cache time-to-live in seconds (default: 30 minutes)
             
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
@@ -258,7 +262,7 @@ class DatabricksClient:
                 query = file.read()
             
             logger.info(f"📄 Executing query from file: {file_path}")
-            return self.execute_query(query, use_cache=use_cache, cache_ttl=cache_ttl)
+            return self.execute_query(query, timeout=timeout, use_cache=use_cache, cache_ttl=cache_ttl)
             
         except FileNotFoundError:
             logger.error(f"❌ SQL file not found: {file_path}")

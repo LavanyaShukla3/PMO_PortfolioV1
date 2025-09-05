@@ -769,4 +769,3 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 };
 
 export default PortfolioGanttChart;
-
