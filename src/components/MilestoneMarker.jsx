@@ -58,9 +58,9 @@ const MilestoneMarker = ({
         
         const monthWidth = 100; // Default month width
         
-        // If no milestone data available, use conservative 2-month width
+        // If no milestone data available, use more generous conservative width
         if (!currentMilestoneDate || !allMilestonesInProject?.length) {
-            const conservativeCharLimit = Math.floor((2 * monthWidth) / 8);
+            const conservativeCharLimit = Math.floor((3 * monthWidth) / 6.5); // 3 months, more accurate char width
             if (labelText.length <= conservativeCharLimit) return labelText;
             return labelText.substring(0, conservativeCharLimit - 3) + '...';
         }
@@ -99,9 +99,9 @@ const MilestoneMarker = ({
         
         if (sameRowMilestones.length === 0) {
             // No milestones on the same row - since alternating months don't collide,
-            // we can extend generously across multiple months
-            const maxSpanMonths = 8; // Very generous space since no collisions on this row
-            const maxCharLimit = Math.floor((maxSpanMonths * monthWidth) / 8);
+            // we can extend very generously across multiple months
+            const maxSpanMonths = 12; // Even more generous space since no collisions on this row
+            const maxCharLimit = Math.floor((maxSpanMonths * monthWidth) / 6.5); // Reduced char width for better fitting
             return labelText.length <= maxCharLimit ? labelText : labelText.substring(0, maxCharLimit - 3) + '...';
         }
         
@@ -120,40 +120,42 @@ const MilestoneMarker = ({
         if (!leftNeighbor) {
             // No left neighbor on same row - extend to reasonable left boundary
             leftBoundary = new Date(currentDate);
-            leftBoundary.setMonth(currentDate.getMonth() - 6); // 6 months back since no conflicts
+            leftBoundary.setMonth(currentDate.getMonth() - 8); // 8 months back since no conflicts
         } else {
-            // Use midpoint between current and left neighbor to avoid overlap
-            const midPointMs = (currentDate.getTime() + leftNeighbor.parsedDate.getTime()) / 2;
-            leftBoundary = new Date(midPointMs);
+            // Use 70% towards left neighbor instead of midpoint for more generous space
+            const span = currentDate.getTime() - leftNeighbor.parsedDate.getTime();
+            const boundaryMs = leftNeighbor.parsedDate.getTime() + (span * 0.3);
+            leftBoundary = new Date(boundaryMs);
         }
         
         if (!rightNeighbor) {
             // No right neighbor on same row - extend to reasonable right boundary
             rightBoundary = new Date(currentDate);
-            rightBoundary.setMonth(currentDate.getMonth() + 6); // 6 months forward since no conflicts
+            rightBoundary.setMonth(currentDate.getMonth() + 8); // 8 months forward since no conflicts
         } else {
-            // Use midpoint between current and right neighbor to avoid overlap
-            const midPointMs = (currentDate.getTime() + rightNeighbor.parsedDate.getTime()) / 2;
-            rightBoundary = new Date(midPointMs);
+            // Use 70% towards right neighbor instead of midpoint for more generous space
+            const span = rightNeighbor.parsedDate.getTime() - currentDate.getTime();
+            const boundaryMs = currentDate.getTime() + (span * 0.7);
+            rightBoundary = new Date(boundaryMs);
         }
         
         // Calculate the available span in months
         const spanMs = rightBoundary - leftBoundary;
         const spanMonths = spanMs / (1000 * 60 * 60 * 24 * 30.44); // Convert to months
         
-        // Since we're only considering same-row conflicts, be more generous with space
-        const usableSpanMonths = Math.max(1.5, Math.min(spanMonths, 8)); // Min 1.5 months, max 8 months
+        // Since we're only considering same-row conflicts, be much more generous with space
+        const usableSpanMonths = Math.max(2.5, Math.min(spanMonths, 12)); // Min 2.5 months, max 12 months
         const availableWidth = usableSpanMonths * monthWidth;
         
-        // Calculate character limit and apply truncation
-        const charLimit = Math.floor(availableWidth / 8); // ~8 pixels per character
+        // Calculate character limit with more accurate character width estimation
+        const charLimit = Math.floor(availableWidth / 6.5); // ~6.5 pixels per character (more accurate)
         
         if (labelText.length <= charLimit) {
             return labelText;
         }
         
-        // Apply smart truncation with minimum readable length
-        const minChars = 10; // Minimum readable characters
+        // Apply smart truncation with more generous minimum readable length
+        const minChars = 15; // Increased minimum readable characters from 10 to 15
         const effectiveLimit = Math.max(minChars, charLimit - 3);
         return labelText.substring(0, effectiveLimit) + '...';
     };
