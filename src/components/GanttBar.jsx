@@ -124,13 +124,13 @@ const GanttBar = ({
     return (
         <g className="gantt-bar">
             
-            {/* Main bar - fully responsive height */}
+            {/* Main bar - 12px height instead of thick bar */}
             <rect
                 x={startX}
-                y={y + (calculateBarHeight(data) - touchTargetSize) / 2}
+                y={y + (calculateBarHeight(data) - touchTargetSize) / 2 + (touchTargetSize / 2) - 6} // Center 12px line
                 width={Math.max(width, 2)} // Minimum width of 2px
-                height={touchTargetSize}
-                rx={4}
+                height={12} // 12px height instead of 1px
+                rx={3} // Keep 3px border radius
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
                 onClick={() => onBarClick?.(data)}

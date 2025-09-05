@@ -855,19 +855,16 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                         {/* Only render Gantt bars and milestones for actual projects with data, not program headers */}
                                         {!isProgramHeader && projectStartDate && projectEndDate && (
                                             <>
-                                                {/* Render bar - responsive height with improved milestone alignment */}
+                                                {/* Render bar - 12px height instead of thick bar */}
                                                 <rect
                                                     key={`bar-${project.id}`}
                                                     x={startX}
-                                                    y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2}
+                                                    y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2) - 6}
                                                     width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment
-                                                    height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                    rx={3} // Reduced border radius for better milestone alignment
+                                                    height={12} // 12px height instead of TOUCH_TARGET_SIZE
+                                                    rx={3} // Keep 3px border radius
                                                     fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                                     className="transition-opacity duration-150 hover:opacity-90 cursor-default"
-                                                    style={{
-                                                        minHeight: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '32px' : '24px'
-                                                    }}
                                                 />
 
                                                 {/* Render milestones - responsive positioning */}

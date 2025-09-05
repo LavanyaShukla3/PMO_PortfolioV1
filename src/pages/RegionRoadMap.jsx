@@ -92,11 +92,11 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
     };
 };
 
-// Milestone label spacing constants - AGGRESSIVE spacing to prevent overlaps
+// Milestone label spacing constants (match PortfolioGanttChart)
 const LINE_HEIGHT = 12;
-const LABEL_PADDING = 40; // Increased from 25 for more aggressive spacing
-const ABOVE_LABEL_OFFSET = 50; // Increased from 35 for more aggressive spacing
-const BELOW_LABEL_OFFSET = 45; // Increased from 30 for more aggressive spacing
+const LABEL_PADDING = 25; // Increased padding for labels
+const ABOVE_LABEL_OFFSET = 35; // Increased space needed above the bar for labels
+const BELOW_LABEL_OFFSET = 30; // Increased space needed below the bar for labels
 
 // Note: truncateLabel and milestone constants are now imported from dateUtils.js
 
@@ -437,12 +437,12 @@ const RegionRoadMap = () => {
 
             // Add minimum spacing to ensure adequate separation even with few milestones
             const totalLabelHeight = maxAboveHeight + maxBelowHeight;
-            const minimumSpacing = 80; // Increased from 50px for more aggressive spacing
+            const minimumSpacing = 50; // Minimum 50px spacing for milestone labels
             
             return Math.max(totalLabelHeight, minimumSpacing);
         } catch (error) {
             console.warn('Error calculating milestone label height:', error);
-            return 100; // Increased fallback height from 60px if there's an error
+            return 60; // Increased fallback height if there's an error
         }
     };
 
@@ -940,10 +940,10 @@ const RegionRoadMap = () => {
                                                         <rect
                                                             key={`bar-${project.id}`}
                                                             x={startX}
-                                                            y={ganttBarY}
+                                                            y={ganttBarY + (responsiveConstants.TOUCH_TARGET_SIZE / 2) - 6}
                                                             width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment, minimum 4px
-                                                            height={responsiveConstants.TOUCH_TARGET_SIZE}
-                                                            rx={3} // Reduced border radius for better milestone alignment
+                                                            height={12} // 12px height instead of TOUCH_TARGET_SIZE
+                                                            rx={3} // Keep 3px border radius
                                                             fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                                             className="transition-opacity duration-150 hover:opacity-90 cursor-default"
                                                         >

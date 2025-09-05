@@ -28,9 +28,9 @@ const MilestoneMarker = ({
     allMilestonesInProject = [], // All milestones in the project for ±4 months check
     currentMilestoneDate = null, // Current milestone date for proximity check
 }) => {
-    // Zoom-responsive sizing - FIXED: Consistent size regardless of isSG3 flag
+    // Zoom-responsive sizing - REDUCED: Smaller milestone markers
     const zoomScale = Math.max(0.5, Math.min(1.5, zoomLevel)); // Clamp zoom between 0.5 and 1.5
-    const baseSize = isMobile ? 12 : 10;
+    const baseSize = isMobile ? 8 : 6; // Reduced from 12:10 to 8:6
     const zoomedBaseSize = Math.round(baseSize * zoomScale);
     
     // ISSUE FIX: All milestones same size - remove isSG3 size variation
@@ -175,7 +175,7 @@ const MilestoneMarker = ({
     };
 
     const wrappedLines = wrapText(label, shouldWrapText);
-    const lineHeight = isMobile ? 14 : 11; // Increased line height for better spacing
+    const lineHeight = isMobile ? 12 : 10; // Reduced line height to match smaller markers
     const totalTextHeight = wrappedLines.length * lineHeight;
 
 
