@@ -700,14 +700,15 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                         hasAdjacentMilestones={milestone.hasAdjacentMilestones}
                                                         showLabel={milestone.showLabel}
                                                         fontSize={constants.MILESTONE_FONT_SIZE}
-                                                    isMobile={false}
-                                                    zoomLevel={zoomLevel}
-                                                    isMonthlyGrouped={milestone.isMonthlyGrouped}
-                                                    monthlyLabels={[]}
-                                                    horizontalLabel={milestone.horizontalLabel}
-                                                    verticalLabels={milestone.verticalLabels}
-                                                    monthKey={milestone.monthKey}
-                                                />
+                                                        isMobile={false}
+                                                        zoomLevel={zoomLevel}
+                                                        isMonthlyGrouped={milestone.isMonthlyGrouped}
+                                                        monthlyLabels={[]}
+                                                        horizontalLabel={milestone.horizontalLabel}
+                                                        verticalLabels={milestone.verticalLabels}
+                                                        monthKey={milestone.monthKey}
+                                                        shouldRenderShape={milestone.shouldRenderShape}
+                                                    />
                                                 );
                                             })}
                                         </g>
