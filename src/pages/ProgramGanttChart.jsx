@@ -852,19 +852,21 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                             />
                                         )}
 
-                                        {/* Only render Gantt bars and milestones for actual projects with data, not program headers */}
-                                        {!isProgramHeader && projectStartDate && projectEndDate && (
+                                        {/* Render Gantt bars for projects with valid dates, including program headers with investment data */}
+                                        {projectStartDate && projectEndDate && (
                                             <>
-                                                {/* Render bar - 12px height instead of thick bar */}
+                                                {/* Render bar - use different height for program headers vs child items */}
                                                 <rect
                                                     key={`bar-${project.id}`}
                                                     x={startX}
                                                     y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2) - 6}
                                                     width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment
-                                                    height={12} // 12px height instead of TOUCH_TARGET_SIZE
+                                                    height={isProgramHeader ? 14 : 12} // Slightly taller bars for program headers
                                                     rx={3} // Keep 3px border radius
                                                     fill={project.status ? statusColors[project.status] : statusColors.Grey}
                                                     className="transition-opacity duration-150 hover:opacity-90 cursor-default"
+                                                    stroke={isProgramHeader ? "#1e40af" : "none"} // Blue border for program headers
+                                                    strokeWidth={isProgramHeader ? 1 : 0}
                                                 />
 
                                                 {/* Render milestones - responsive positioning */}
