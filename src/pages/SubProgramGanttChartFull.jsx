@@ -246,7 +246,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
 
     // Calculate milestone label height to prevent overlap
     const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
-        if (!milestones?.length) return 0;
+        if (!milestones?.length) return { total: 0, above: 0, below: 0 };
 
         try {
             // Process milestones to get their positions and grouping info
@@ -255,9 +255,9 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             let maxAboveHeight = 0;
             let maxBelowHeight = 0;
             const LINE_HEIGHT = 12;
-            const LABEL_PADDING = 25; // Increased padding for labels
-            const ABOVE_LABEL_OFFSET = 35; // Increased space needed above the bar for labels
-            const BELOW_LABEL_OFFSET = 30; // Increased space needed below the bar for labels
+            const LABEL_PADDING = 1; // Minimal padding for labels
+            const ABOVE_LABEL_OFFSET = 1; // Minimal space above bar - very close to marker
+            const BELOW_LABEL_OFFSET = 1; // Minimal space below bar - very close to marker
 
             processedMilestones.forEach(milestone => {
                 if (milestone.isMonthlyGrouped) {
@@ -288,34 +288,42 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                 }
             });
 
-            // Add minimum spacing to ensure adequate separation even with few milestones
-            const totalLabelHeight = maxAboveHeight + maxBelowHeight;
-            const minimumSpacing = 50; // Minimum 50px spacing for milestone labels
-            
-            return Math.max(totalLabelHeight, minimumSpacing);
+            // Return detailed breakdown for better spacing calculations
+            return {
+                total: maxAboveHeight + maxBelowHeight,
+                above: maxAboveHeight,
+                below: maxBelowHeight
+            };
         } catch (error) {
             console.warn('Error calculating milestone label height:', error);
             return 60; // Increased fallback height if there's an error
         }
     };
 
-    // Calculate row height for each project (matching PortfolioGanttChart logic)
+    // Calculate row height for each project (compact layout optimization)
     const calculateBarHeight = (project, processedMilestones = null) => {
-        // For SubProgramGanttChart, we want consistent row heights
-        // that work well with the GanttBar component centering logic
-        const baseHeight = constants.TOUCH_TARGET_SIZE;
-        const minHeight = Math.max(baseHeight, 32);
+        // Compact calculation for better space utilization
+        const ganttBarHeight = 12; // Fixed 12px for Gantt bar
+        const baseCompactHeight = Math.round(32 * zoomLevel); // Reduced minimum height
         
-        // Calculate height needed for milestone labels to prevent overlap
-        let milestoneLabelHeight = 0;
+        // Calculate height needed for milestone labels to prevent overlap (detailed breakdown)
+        let milestoneHeights = { total: 0, above: 0, below: 0 };
         if (processedMilestones?.length > 0) {
-            milestoneLabelHeight = calculateMilestoneLabelHeight(processedMilestones, constants.MONTH_WIDTH);
+            milestoneHeights = calculateMilestoneLabelHeight(processedMilestones, constants.MONTH_WIDTH);
         } else if (project?.milestones?.length > 0) {
-            milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, constants.MONTH_WIDTH);
+            milestoneHeights = calculateMilestoneLabelHeight(project.milestones, constants.MONTH_WIDTH);
         }
         
-        // Return total height needed: base height + milestone label height
-        return Math.max(minHeight, baseHeight + milestoneLabelHeight);
+        // Proper vertical stacking: above labels + bar + below labels
+        const compactPadding = 8; // Reduced padding
+        
+        // Return compact total height with proper milestone spacing
+        const compactHeight = Math.max(
+            baseCompactHeight, // Minimum touch target
+            milestoneHeights.above + ganttBarHeight + milestoneHeights.below + compactPadding // Proper vertical stacking
+        );
+        
+        return compactHeight;
     };
 
     if (loading) {
@@ -500,8 +508,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                             );
                             
                             const rowHeight = calculateBarHeight(row, processedMilestones);
-                            const rowSpacing = constants.ROW_PADDING || 8;
-                            const topMargin = Math.round(10 * zoomLevel);
+                            const compactRowSpacing = Math.round(4 * zoomLevel); // Reduced spacing for compact layout
+                            const topMargin = Math.round(32 * zoomLevel); // Increased top margin for first row milestone labels
                             
                             // Calculate cumulative Y offset to match Gantt bars
                             const yOffset = allProjectRows
@@ -520,7 +528,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                         prevProjectEndDate
                                     );
                                     
-                                    return total + calculateBarHeight(p, prevProcessedMilestones) + rowSpacing;
+                                    return total + calculateBarHeight(p, prevProcessedMilestones) + compactRowSpacing;
                                 }, topMargin);
                             
                             return (
@@ -612,7 +620,7 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
 
                                     // Calculate proper Y offset using PortfolioGanttChart logic
                                     const rowSpacing = constants.ROW_PADDING || 8;
-                                    const topMargin = Math.round(10 * zoomLevel);
+                                    const topMargin = Math.round(32 * zoomLevel); // Increased top margin for first row milestone labels
                                     const yOffset = allProjectRows
                                         .slice(0, index)
                                         .reduce((total, p, i) => {
@@ -636,9 +644,11 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                     const totalHeight = calculateBarHeight(row, processedMilestones);
                                     const centerY = yOffset + totalHeight / 2;
                                     
-                                    // CRITICAL FIX: Center GanttBar within the total row height
-                                    // This matches how PortfolioGanttChart positions its bars
-                                    const centeredY = yOffset + (totalHeight - constants.TOUCH_TARGET_SIZE) / 2;
+                                    // Get detailed milestone height breakdown for proper positioning
+                                    const milestoneHeights = calculateMilestoneLabelHeight(processedMilestones || row.milestones || [], constants.MONTH_WIDTH);
+                                    
+                                    // Position Gantt bar accounting for milestone labels above it
+                                    const centeredY = yOffset + milestoneHeights.above + (constants.TOUCH_TARGET_SIZE / 2);
                                     
                                     return (
                                         <g key={`${row.PROJECT_ID}-${index}`}>
@@ -682,7 +692,8 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                                 // EXACT SAME LOGIC AS PORTFOLIOGANTTCHART
                                                 // Position milestone at: yOffset + (totalHeight - TOUCH_TARGET_SIZE) / 2 + (TOUCH_TARGET_SIZE / 2)
                                                 // This ensures perfect alignment and no overlaps
-                                                const milestoneY = Math.round(yOffset + (totalHeight - constants.TOUCH_TARGET_SIZE) / 2 + (constants.TOUCH_TARGET_SIZE / 2));
+                                                // Position milestone markers to align with Gantt bar
+                                                const milestoneY = centeredY + 6; // Center with the 12px bar
                                                 
                                                 return (
                                                     <MilestoneMarker

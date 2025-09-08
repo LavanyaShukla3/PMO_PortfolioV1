@@ -331,7 +331,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     };
 
     const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
-        if (!milestones?.length) return 0;
+        if (!milestones?.length) return { total: 0, above: 0, below: 0 };
 
         // Process milestones to get their positions and grouping info
         const processedMilestones = processMilestonesWithPosition(milestones, startDate, monthWidth);
@@ -339,69 +339,95 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         let maxAboveHeight = 0;
         let maxBelowHeight = 0;
         const LINE_HEIGHT = 12;
-        const LABEL_PADDING = 15; // Padding for labels
-        const ABOVE_LABEL_OFFSET = 25; // Space needed above the bar for labels (increased for Display3)
-        const BELOW_LABEL_OFFSET = 20; // Space needed below the bar for labels
+        const COMPACT_LABEL_PADDING = 1; // Minimal padding for labels
+        const COMPACT_ABOVE_OFFSET = 1; // Minimal space above bar - very close to marker
+        const COMPACT_BELOW_OFFSET = 1; // Minimal space below bar - very close to marker
+
+        let hasAnyLabels = false;
 
         processedMilestones.forEach(milestone => {
             if (milestone.isMonthlyGrouped) {
-                // Display3: Monthly grouped milestones - height depends on layout type
-                let labelHeight;
-                if (milestone.horizontalLabel) {
-                    // Horizontal layout: single line
+                // Display3: Monthly grouped milestones - height depends on actual layout
+                let labelHeight = 0;
+                if (milestone.horizontalLabel && milestone.horizontalLabel.trim()) {
                     labelHeight = LINE_HEIGHT;
-                } else if (milestone.verticalLabels?.length) {
-                    // Vertical layout: multiple lines
-                    labelHeight = milestone.verticalLabels.length * LINE_HEIGHT;
-                } else {
-                    labelHeight = LINE_HEIGHT; // Fallback
+                    hasAnyLabels = true;
+                } else if (milestone.verticalLabels?.length > 0) {
+                    const nonEmptyLabels = milestone.verticalLabels.filter(label => label && label.trim());
+                    labelHeight = nonEmptyLabels.length * LINE_HEIGHT;
+                    if (nonEmptyLabels.length > 0) hasAnyLabels = true;
                 }
 
-                if (milestone.labelPosition === 'above') {
-                    maxAboveHeight = Math.max(maxAboveHeight, labelHeight + ABOVE_LABEL_OFFSET);
-                } else {
-                    maxBelowHeight = Math.max(maxBelowHeight, labelHeight + BELOW_LABEL_OFFSET);
+                if (labelHeight > 0) {
+                    if (milestone.labelPosition === 'above') {
+                        maxAboveHeight = Math.max(maxAboveHeight, labelHeight + COMPACT_ABOVE_OFFSET);
+                    } else {
+                        maxBelowHeight = Math.max(maxBelowHeight, labelHeight + COMPACT_BELOW_OFFSET);
+                    }
                 }
-            } else if (milestone.isGrouped) {
-                // Display2: Legacy grouped milestones
-                const groupHeight = milestone.groupLabels.length * LINE_HEIGHT;
-                maxBelowHeight = Math.max(maxBelowHeight, groupHeight + LABEL_PADDING);
-            } else {
-                // Display2: Legacy individual milestones
+            } else if (milestone.isGrouped && milestone.groupLabels?.length > 0) {
+                const nonEmptyGroupLabels = milestone.groupLabels.filter(label => label && label.trim());
+                if (nonEmptyGroupLabels.length > 0) {
+                    const groupHeight = nonEmptyGroupLabels.length * LINE_HEIGHT;
+                    maxBelowHeight = Math.max(maxBelowHeight, groupHeight + COMPACT_LABEL_PADDING);
+                    hasAnyLabels = true;
+                }
+            } else if (milestone.label && milestone.label.trim()) {
+                hasAnyLabels = true;
                 if (milestone.labelPosition === 'above') {
-                    maxAboveHeight = Math.max(maxAboveHeight, ABOVE_LABEL_OFFSET);
+                    maxAboveHeight = Math.max(maxAboveHeight, COMPACT_ABOVE_OFFSET);
                 } else {
-                    maxBelowHeight = Math.max(maxBelowHeight, BELOW_LABEL_OFFSET);
+                    maxBelowHeight = Math.max(maxBelowHeight, COMPACT_BELOW_OFFSET);
                 }
             }
         });
 
-        // Return total height needed for milestone labels
-        return maxAboveHeight + maxBelowHeight;
+        // Return detailed breakdown for better spacing calculations
+        return {
+            total: hasAnyLabels ? (maxAboveHeight + maxBelowHeight) : 0,
+            above: hasAnyLabels ? maxAboveHeight : 0,
+            below: hasAnyLabels ? maxBelowHeight : 0
+        };
     };
 
     const calculateBarHeight = (project) => {
-        // Calculate height needed for project name wrapping (responsive)
-        const maxCharsPerLine = responsiveConstants.LABEL_WIDTH / 8; // Approximate chars per line
-        const textLines = Math.ceil(project.name.length / maxCharsPerLine);
-        const nameHeight = responsiveConstants.BASE_BAR_HEIGHT + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
-
-        // Calculate height needed for milestone labels (responsive)
-        const milestoneLabelHeight = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
-
-        // Return total height needed: name height + milestone label height + responsive padding
-        const basePadding = responsiveConstants.ROW_PADDING || 8;
-        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
-        return nameHeight + milestoneLabelHeight + extraPadding;
+        // STEP 1: Calculate actual Gantt bar height (fixed)
+        const ganttBarHeight = 12; // Fixed height for the actual bar
+        
+        // STEP 2: Calculate milestone label space needed (detailed breakdown)
+        const milestoneHeights = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
+        
+        // STEP 3: Calculate project name space (minimal, just enough to display)
+        const projectName = project.name || '';
+        const estimatedNameWidth = responsiveConstants.LABEL_WIDTH - 16; // Account for padding
+        const maxCharsPerLine = Math.max(30, estimatedNameWidth / 7); // More efficient text wrapping
+        const textLines = Math.ceil(projectName.length / maxCharsPerLine);
+        const lineHeight = Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Compact line height
+        const nameHeight = Math.max(16, textLines * lineHeight); // Just enough for text
+        
+        // STEP 4: Content-driven height calculation with proper milestone spacing
+        // The row height = MAX of:
+        // - Space needed for project name in left panel
+        // - Space needed for milestone labels above + Gantt bar + milestone labels below in right panel
+        const leftPanelNeeds = nameHeight + 8; // Name + minimal padding
+        const rightPanelNeeds = milestoneHeights.above + ganttBarHeight + milestoneHeights.below + 8; // Proper vertical stacking
+        
+        // Use the larger of the two, but keep it compact
+        const contentDrivenHeight = Math.max(leftPanelNeeds, rightPanelNeeds);
+        
+        // STEP 5: Ensure minimum usability
+        const minimumHeight = Math.round(28 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Reduced minimum
+        
+        return Math.max(minimumHeight, contentDrivenHeight);
     };
 
     const getTotalHeight = () => {
         const scaledData = getScaledFilteredData();
-        const rowSpacing = responsiveConstants.ROW_PADDING || 8;
+        const ultraMinimalSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing between rows
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + rowSpacing;
-        }, Math.round(40 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Responsive top margin
+            return total + barHeight + ultraMinimalSpacing;
+        }, Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Increased top margin for first row milestone labels
     };
 
     return (
@@ -611,25 +637,27 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {getScaledFilteredData().map((project, index) => {
                             const scaledData = getScaledFilteredData();
-                            const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                            const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                            const minimalRowSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing
+                            // Make first row top margin more compact
+                            const topMargin = index === 0 ? Math.round(16 * (responsiveConstants.ZOOM_LEVEL || 1.0)) : 0;
                             const yOffset = scaledData
                                 .slice(0, index)
-                                .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
+                                .reduce((total, p) => total + calculateBarHeight(p) + minimalRowSpacing, topMargin);
                             
                             return (
                                 <div
                                     key={project.id}
-                                    className={`absolute flex items-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors ${
+                                    className={`absolute flex items-start border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors ${
                                         project.isDrillable ? 'cursor-pointer hover:bg-blue-50/50' : 'cursor-default'
                                     }`}
                                     style={{
                                         top: yOffset,
                                         height: calculateBarHeight(project),
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
+                                        paddingTop: '2px', // Minimal top padding - just enough to avoid clipping
                                         fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        minHeight: responsiveConstants.TOUCH_TARGET_SIZE
+                                        minHeight: Math.round(28 * (responsiveConstants.ZOOM_LEVEL || 1.0)) // Reduced minimum height
                                     }}
                                     onClick={() => {
                                         if (project.isDrillable && onDrillToProgram) {
@@ -680,13 +708,13 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                         >
                             {/* iii. Removed swimlanes from PortfolioGanttChart as requested */}
                             {getScaledFilteredData().map((project, index) => {
-                                // Calculate cumulative Y offset including all previous projects' full heights
+                                // Calculate cumulative Y offset with minimal spacing to pack rows tightly
                                 const scaledData = getScaledFilteredData();
-                                const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                                const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                                const minimalRowSpacing = Math.round(2 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Minimal spacing
+                                const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
                                 const yOffset = scaledData
                                     .slice(0, index)
-                                    .reduce((total, p) => total + calculateBarHeight(p) + rowSpacing, topMargin);
+                                    .reduce((total, p) => total + calculateBarHeight(p) + minimalRowSpacing, topMargin);
 
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
@@ -700,20 +728,26 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                 const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;
 
-                                // Calculate the project's total height and center point
+                                // Calculate the project's actual content height
                                 const totalHeight = calculateBarHeight(project);
-                                const centerY = yOffset + totalHeight / 2;
+                                
+                                // Get detailed milestone label height breakdown
+                                const milestoneHeights = calculateMilestoneLabelHeight(project.milestones, responsiveConstants.MONTH_WIDTH);
+                                
+                                // Position Gantt bar accounting for milestone labels above it
+                                const ganttBarY = yOffset + Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)) + milestoneHeights.above;
+                                const milestoneY = ganttBarY + 6; // Center milestones with the 12px bar
 
                                 // Process milestones with position information
                                 const milestones = processMilestonesWithPosition(project.milestones, startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
 
                                 return (
                                     <g key={`project-${project.id}`} className="project-group">
-                                        {/* Render bar - 12px height instead of thick bar */}
+                                        {/* Render bar - positioned based on actual content needs */}
                                         <rect
                                             key={`bar-${project.id}`}
                                             x={startX}
-                                            y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2) - 6}
+                                            y={ganttBarY}
                                             width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment
                                             height={12} // 12px height instead of TOUCH_TARGET_SIZE
                                             rx={3} // Keep 3px border radius
@@ -721,12 +755,12 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                             className="transition-opacity duration-150 hover:opacity-90 cursor-default"
                                         />
 
-                                        {/* Render milestones - responsive positioning */}
+                                        {/* Render milestones - positioned to align with bar center */}
                                         {milestones.map((milestone, mIndex) => (
                                             <MilestoneMarker
                                                 key={`${project.id}-milestone-${mIndex}`}
                                                 x={milestone.x}
-                                                y={yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2 + (responsiveConstants.TOUCH_TARGET_SIZE / 2)}
+                                                y={milestoneY}
                                                 complete={milestone.status}
                                                 label={milestone.label}
                                                 isSG3={milestone.isSG3}

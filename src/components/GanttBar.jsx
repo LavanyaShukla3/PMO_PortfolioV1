@@ -5,12 +5,16 @@ import MilestoneMarker from './MilestoneMarker';
 const calculateBarHeight = (project) => {
     // Handle undefined or invalid project data
     if (!project || !project.name) {
-        return 50; // Default height
+        return 32; // Reduced default height for compact layout
     }
     
-    const textLines = Math.ceil(project.name.length / 30);
+    // More compact calculation
+    const projectName = project.name || '';
+    const textLines = Math.ceil(projectName.length / 25); // More characters per line
     const hasMilestones = project.milestones && project.milestones.length > 0;
-    return 30 + ((textLines - 1) * 12) + (hasMilestones ? 20 : 0); // Using the same constants as parent
+    
+    // Compact height calculation: minimal padding, closer spacing
+    return Math.max(32, 20 + ((textLines - 1) * 12) + (hasMilestones ? 16 : 0)); // Reduced constants
 };
 
 const statusColors = {
@@ -124,12 +128,12 @@ const GanttBar = ({
     return (
         <g className="gantt-bar">
             
-            {/* Main bar - 12px height instead of thick bar */}
+            {/* Main bar - positioned for compact layout, not centered */}
             <rect
                 x={startX}
-                y={y + (calculateBarHeight(data) - touchTargetSize) / 2 + (touchTargetSize / 2) - 6} // Center 12px line
+                y={y + 8} // Minimal offset from top instead of centering calculation
                 width={Math.max(width, 2)} // Minimum width of 2px
-                height={12} // 12px height instead of 1px
+                height={12} // Fixed 12px height
                 rx={3} // Keep 3px border radius
                 fill={barColor}
                 className="cursor-pointer transition-opacity duration-150 hover:opacity-90"
@@ -138,12 +142,12 @@ const GanttBar = ({
                 <title>{safeLabel}</title>
             </rect>
             
-            {/* Milestones */}
+            {/* Milestones - positioned to align with bar center */}
             {milestones?.map((milestone, index) => (
                 <MilestoneMarker
                     key={`${data.id}-milestone-${index}`}
                     x={milestone.x}
-                    y={y + (calculateBarHeight(data) - touchTargetSize) / 2 + (touchTargetSize / 2)} // Center with the bar
+                    y={y + 14} // Center with the 12px bar (8 + 6)
                     complete={milestone.status}
                     label={milestone.label}
                     isSG3={milestone.isSG3}

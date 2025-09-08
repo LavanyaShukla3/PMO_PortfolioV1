@@ -94,9 +94,9 @@ const getResponsiveConstants = (zoomLevel = 1.0) => {
 
 // Milestone label spacing constants (match PortfolioGanttChart)
 const LINE_HEIGHT = 12;
-const LABEL_PADDING = 25; // Increased padding for labels
-const ABOVE_LABEL_OFFSET = 35; // Increased space needed above the bar for labels
-const BELOW_LABEL_OFFSET = 30; // Increased space needed below the bar for labels
+const LABEL_PADDING = 1; // Minimal padding for labels
+const ABOVE_LABEL_OFFSET = 1; // Minimal space above bar - very close to marker
+const BELOW_LABEL_OFFSET = 1; // Minimal space below bar - very close to marker
 
 // Note: truncateLabel and milestone constants are now imported from dateUtils.js
 
@@ -407,7 +407,7 @@ const RegionRoadMap = () => {
     const calculateMilestoneLabelHeight = (milestones, monthWidth) => {
         try {
             if (!milestones || milestones.length === 0) {
-                return 50; // Minimum spacing even with no milestones
+                return { total: 0, above: 0, below: 0 }; // No milestone space needed
             }
 
             // Group milestones by month to calculate height requirements
@@ -435,14 +435,15 @@ const RegionRoadMap = () => {
                 }
             });
 
-            // Add minimum spacing to ensure adequate separation even with few milestones
-            const totalLabelHeight = maxAboveHeight + maxBelowHeight;
-            const minimumSpacing = 50; // Minimum 50px spacing for milestone labels
-            
-            return Math.max(totalLabelHeight, minimumSpacing);
+            // Return detailed breakdown for better spacing calculations
+            return {
+                total: maxAboveHeight + maxBelowHeight,
+                above: maxAboveHeight,
+                below: maxBelowHeight
+            };
         } catch (error) {
             console.warn('Error calculating milestone label height:', error);
-            return 60; // Increased fallback height if there's an error
+            return { total: 60, above: 30, below: 30 }; // Fallback if there's an error
         }
     };
 
@@ -452,12 +453,16 @@ const RegionRoadMap = () => {
         const textLines = Math.ceil(projectName.length / 30); // Approximate chars per line
         const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
         
-        // Calculate height needed for milestone labels to prevent overlap
-        const milestoneLabelHeight = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
+        // Calculate height needed for milestone labels with detailed breakdown
+        const milestoneHeights = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
         
+        // Proper vertical stacking: above labels + bar + below labels
         const basePadding = responsiveConstants.ROW_PADDING || 8;
         const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
-        return nameHeight + milestoneLabelHeight + extraPadding;
+        
+        // Use the larger of name height or milestone vertical stacking
+        const contentHeight = Math.max(nameHeight, milestoneHeights.above + baseHeight + milestoneHeights.below);
+        return contentHeight + extraPadding;
     };
 
     const rowHeight = calculateRowHeight();
@@ -819,7 +824,7 @@ const RegionRoadMap = () => {
                         {getScaledFilteredData().map((project, index) => {
                             const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                             const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                            const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                            const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
                             const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                 const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                 return total + pRowHeight + rowSpacing;
@@ -892,7 +897,7 @@ const RegionRoadMap = () => {
                                     {getScaledFilteredData().map((project, index) => {
                                         const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                         const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                                        const topMargin = Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                                        const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
                                         const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                             const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                             return total + pRowHeight + rowSpacing;
@@ -905,11 +910,14 @@ const RegionRoadMap = () => {
                                         // Process milestones after we have projectEndDate
                                         const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
                                         
-                                        // Calculate Y positions to match PortfolioGanttChart alignment EXACTLY
-                                        const totalHeight = projectRowHeight; // Use same variable name as PortfolioGanttChart
+                                        // Get detailed milestone height breakdown for proper positioning
+                                        const milestoneHeights = calculateMilestoneLabelHeight(project.milestones || [], responsiveConstants.MONTH_WIDTH);
+                                        
+                                        // Calculate Y positions with proper milestone spacing
+                                        const totalHeight = projectRowHeight;
                                         const centerY = yOffset + totalHeight / 2;
-                                        const ganttBarY = yOffset + (totalHeight - responsiveConstants.TOUCH_TARGET_SIZE) / 2;
-                                        const milestoneY = ganttBarY + (responsiveConstants.TOUCH_TARGET_SIZE / 2); // Use center of Gantt bar for milestones
+                                        const ganttBarY = yOffset + milestoneHeights.above + Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                                        const milestoneY = ganttBarY + 6; // Center milestones with the 12px bar
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
