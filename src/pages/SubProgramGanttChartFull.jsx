@@ -75,13 +75,13 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
             const labelPosition = getMonthlyLabelPosition(monthKey);
 
             // Create vertical labels for this month with intelligent width calculation
-            console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
-            console.log('🎯 Max initial width:', maxInitialWidth, 'Month width:', monthWidth);
-            console.log('🎯 All project milestones:', formattedMilestones.length);
+
+
+
             
             const verticalLabels = createVerticalMilestoneLabels(monthMilestones, maxInitialWidth, '14px', formattedMilestones, monthWidth);
 
-            console.log('🎯 Vertical labels result:', verticalLabels);
+
 
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {

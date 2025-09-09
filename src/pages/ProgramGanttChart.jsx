@@ -123,8 +123,6 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
     const monthlyGroups = groupMilestonesByMonth(milestones);
     const maxInitialWidth = monthWidth * 8; // Allow intelligent calculation up to 8 months
     
-    console.log('🚀 ProgramGanttChart: processMilestonesWithPosition called with updated logic!');
-    console.log('🚀 Month width:', monthWidth, 'Max initial width:', maxInitialWidth);
 
     const processedMilestones = [];
 
@@ -136,15 +134,10 @@ const processMilestonesWithPosition = (milestones, startDate, monthWidth = 100, 
         // STRICT RULES: Only vertical stacking allowed, no horizontal layout
         // RULE 1: One milestone label per month with alternating positions
         // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
-        console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
-        console.log('🎯 Max initial width:', maxInitialWidth, 'Month width:', monthWidth);
-        console.log('🎯 All project milestones:', milestones.length);
-        console.log('🎯 Sample milestone data:', milestones[0]); // NEW: Debug milestone structure
         
         const verticalLabels = createVerticalMilestoneLabels(monthMilestones, maxInitialWidth, '14px', milestones, monthWidth);
         const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
-        console.log('🎯 Vertical labels result:', verticalLabels);
 
         // Process each milestone in the month
         monthMilestones.forEach((milestone, index) => {
@@ -832,19 +825,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                 const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;
                                 
-                                // Debug: Log date parsing for first few projects
-                                if (index < 2) {
-                                    console.log(`🗓️ Project "${project.name}" dates:`, {
-                                        rawStart: project.startDate,
-                                        rawEnd: project.endDate,
-                                        parsedStart: projectStartDate,
-                                        parsedEnd: projectEndDate,
-                                        startX,
-                                        endX,
-                                        width,
-                                        isProgramHeader: project.isProgramHeader
-                                    });
-                                }
+                                // Debug block removed
 
                                 // Calculate the project's actual content height
                                 const totalHeight = calculateBarHeight(project);

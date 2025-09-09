@@ -144,7 +144,6 @@ const RegionRoadMap = () => {
                 setLoading(true);
                 setError(null);
                 
-                console.log('� Loading initial region data and filter options...');
                 
                 // Load filter options first
                 const options = await getRegionFilterOptions();
@@ -259,7 +258,6 @@ const RegionRoadMap = () => {
         const projectEndDate = parseDate(project.endDate);
         
         if (!projectStartDate || !projectEndDate) {
-            console.log('Project has invalid dates:', project.name, project.startDate, project.endDate);
             return false;
         }
 
@@ -267,7 +265,6 @@ const RegionRoadMap = () => {
         const isWithinRange = projectStartDate <= endDate && projectEndDate >= startDate;
         
         if (!isWithinRange) {
-            console.log('Project outside timeline:', project.name, 'Project:', projectStartDate, '-', projectEndDate, 'Timeline:', startDate, '-', endDate);
         }
         
         return isWithinRange;
@@ -358,13 +355,11 @@ const RegionRoadMap = () => {
 
 
     const handleFilterChange = (filterType, value) => {
-        console.log(`🔄 Filter change: ${filterType} = ${value}`);
         setFilters(prev => {
             const newFilters = {
                 ...prev,
                 [filterType]: value
             };
-            console.log('🔄 New filters state:', newFilters);
             return newFilters;
         });
     };
@@ -486,14 +481,10 @@ const RegionRoadMap = () => {
             // STRICT RULES: Only vertical stacking allowed, no horizontal layout
             // RULE 1: One milestone label per month with alternating positions
             // RULE 2: Multiple milestones stacked vertically with intelligent width calculation
-            console.log('🎯 Processing monthly group:', monthKey, 'with', monthMilestones.length, 'milestones');
-            console.log('🎯 Max initial width:', maxInitialWidth, 'Month width:', monthWidth);
-            console.log('🎯 All project milestones:', milestones.length);
             
             const verticalLabels = createVerticalMilestoneLabels(monthMilestones, maxInitialWidth, '14px', milestones, monthWidth);
             const horizontalLabel = ''; // Disabled to enforce strict vertical stacking
 
-            console.log('🎯 Vertical labels result:', verticalLabels);
 
             // Process each milestone in the month
             monthMilestones.forEach((milestone, index) => {

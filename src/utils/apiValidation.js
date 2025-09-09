@@ -8,31 +8,27 @@
  */
 const debugApiResponse = async (url, description) => {
     try {
-        console.log(`🔍 Testing ${description}: ${url}`);
         
         const response = await fetch(url);
         const responseText = await response.text();
         
-        console.log(`📡 Status: ${response.status} ${response.statusText}`);
-        console.log(`📝 Response headers:`, [...response.headers.entries()]);
-        console.log(`📄 First 200 chars of response:`, responseText.substring(0, 200));
         
         if (responseText.startsWith('<!DOCTYPE')) {
-            console.log('❌ Received HTML instead of JSON - Backend likely not running or wrong URL');
+
             return { error: 'HTML_RESPONSE', response: responseText };
         }
         
         try {
             const jsonData = JSON.parse(responseText);
-            console.log('✅ Valid JSON received:', jsonData);
+
             return { success: true, data: jsonData };
         } catch (parseError) {
-            console.log('❌ Invalid JSON:', parseError.message);
+
             return { error: 'INVALID_JSON', response: responseText };
         }
         
     } catch (networkError) {
-        console.log('❌ Network error:', networkError.message);
+
         return { error: 'NETWORK_ERROR', message: networkError.message };
     }
 };
@@ -42,7 +38,7 @@ const debugApiResponse = async (url, description) => {
  * @returns {Promise<Object>} Validation result with isValid, errors, and mode
  */
 export const validateApiData = async () => {
-    console.log('🚀 Starting API validation...');
+
     
     const endpoints = [
         { url: '/api/health', name: 'Health Check' },

@@ -45,14 +45,12 @@ const MilestoneMarker = ({
 
     // DYNAMIC WRAPPING: Allow label to stretch between neighboring milestones with alternating row awareness
     const truncateLabel = (labelText, currentLabelPosition) => {
-        console.log('🔍 MilestoneMarker: truncateLabel called with:', labelText, 'position:', currentLabelPosition);
         
         if (!labelText || typeof labelText !== 'string') return labelText;
         
         // NEW FIX: If we have monthly grouped labels, they've already been intelligently processed
         // in createVerticalMilestoneLabels, so skip additional truncation
         if (isMonthlyGrouped && (verticalLabels?.length > 0 || horizontalLabel)) {
-            console.log('🔍 Skipping truncation - already processed by createVerticalMilestoneLabels');
             return labelText; // Return as-is, already processed
         }
         

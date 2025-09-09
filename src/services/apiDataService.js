@@ -4,7 +4,6 @@
 // API function to fetch unified backend data and process for portfolio view
 const processPortfolioDataFromAPI = async () => {
     try {
-        console.log('🚀 Loading portfolio data from backend API...');
         
         // Fetch unified dataset from backend
         const response = await fetch('/api/data');
@@ -20,21 +19,12 @@ const processPortfolioDataFromAPI = async () => {
         // Extract both hierarchy and investment data from structured response
         const hierarchyData = result.data.hierarchy;
         const investmentData = result.data.investment;
-        console.log('📊 Raw hierarchy data loaded:', hierarchyData.length, 'records');
-        console.log('📊 Raw investment data loaded:', investmentData.length, 'records');
 
         // CORRECT APPROACH: Group Portfolio records by their parent PTF IDs
         // Portfolio structure: Portfolio records (PROG000xxx) are grouped by COE_ROADMAP_PARENT_ID (PTF000xxx)
         const portfolioRecords = hierarchyData.filter(item => 
             item.COE_ROADMAP_TYPE === 'Portfolio'
         );
-        console.log('🎯 Portfolio records found:', portfolioRecords.length, 'records');
-        console.log('🔍 Sample portfolio records:', portfolioRecords.slice(0, 3).map(p => ({
-            id: p.CHILD_ID,
-            name: p.CHILD_NAME,
-            parentId: p.COE_ROADMAP_PARENT_ID,
-            type: p.COE_ROADMAP_TYPE
-        })));
 
         // Group portfolios by their parent PTF ID
         const portfolioGroups = {};
@@ -47,8 +37,6 @@ const processPortfolioDataFromAPI = async () => {
         });
         
         const ptfIds = Object.keys(portfolioGroups);
-        console.log('🔍 Portfolio groups (PTF IDs):', ptfIds.length, 'groups');
-        console.log('🔍 PTF IDs:', ptfIds);
         
         // Initialize processed data array
         const processedData = [];
@@ -56,23 +44,15 @@ const processPortfolioDataFromAPI = async () => {
         // STEP 1: Process each PTF group as a portfolio (with isDrillable: false by default)
         for (const ptfId of ptfIds) {
             const portfoliosInGroup = portfolioGroups[ptfId];
-            console.log(`🔍 Processing PTF group: ${ptfId} with ${portfoliosInGroup.length} portfolios`);
             
             // Process each portfolio in this PTF group
             for (const portfolio of portfoliosInGroup) {
-                console.log('🔍 Processing portfolio:', portfolio.CHILD_ID, '-', portfolio.CHILD_NAME);
                 
                 // Find investment data for this portfolio
                 const investment = investmentData.find(inv => 
                     inv.INV_EXT_ID === portfolio.CHILD_ID && inv.ROADMAP_ELEMENT === 'Investment'
                 );
                 
-                if (investment) {
-                    console.log('✅ Found investment for portfolio:', portfolio.CHILD_ID, '-', investment.INVESTMENT_NAME);
-                } else {
-                    console.log('❌ No investment record for portfolio:', portfolio.CHILD_ID, '-', portfolio.CHILD_NAME);
-                    // Still process portfolio with placeholder data - show portfolio name even without investment
-                }
                 // Find milestones for this portfolio
                 const milestones = investmentData
                     .filter(inv => 
@@ -104,7 +84,6 @@ const processPortfolioDataFromAPI = async () => {
                 };
                 
                 processedData.push(portfolioData);
-                console.log('✅ Added portfolio item:', portfolioData.id, '-', portfolioData.name, investment ? '(with investment)' : '(name only)');
             }
         }
         
@@ -117,24 +96,15 @@ const processPortfolioDataFromAPI = async () => {
                 .filter(Boolean) // Remove null/undefined values
         );
         
-        console.log('🔍 Program parent IDs found:', Array.from(programParentIds));
         
         // Update isDrillable flag for portfolios that have child programs
         processedData.forEach(portfolio => {
             if (programParentIds.has(portfolio.id)) {
                 portfolio.isDrillable = true;
-                console.log('✅ Portfolio is drillable:', portfolio.id, '-', portfolio.name);
-            } else {
-                console.log('❌ Portfolio not drillable (no child programs):', portfolio.id, '-', portfolio.name);
             }
         });
         
-        console.log('✅ Successfully processed', processedData.length, 'portfolio items from API');
-        console.log('🔍 First few items:', processedData.slice(0, 5).map(item => ({
-            name: item.name,
-            isProgram: item.isProgram,
-            parentId: item.parentId
-        })));
+        // If you need to inspect processedData, do so here (e.g., for debugging)
         return processedData;
         
     } catch (error) {
@@ -149,7 +119,6 @@ export const processPortfolioData = processPortfolioDataFromAPI;
 // API function to fetch unified backend data and process for program view
 const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
     try {
-        console.log('🚀 Loading program data from backend API...');
         
         // Fetch unified dataset from backend
         const response = await fetch('/api/data');
@@ -165,25 +134,18 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
         // Extract both hierarchy and investment data from structured response
         const hierarchyData = result.data.hierarchy;
         const investmentData = result.data.investment;
-        console.log('📊 Raw hierarchy data loaded:', hierarchyData.length, 'records');
-        console.log('📊 Raw investment data loaded:', investmentData.length, 'records');
+
+
 
         // Filter hierarchy for Program and SubProgram data
         const programTypeData = hierarchyData.filter(item => 
             item.COE_ROADMAP_TYPE === 'Program' || item.COE_ROADMAP_TYPE === 'SubProgram'
         );
-        console.log('🎯 Filtered program/subprogram data:', programTypeData.length, 'records');
+
 
         // If a specific portfolio is selected, filter to show only its programs
         let filteredData = programTypeData;
         if (selectedPortfolioId) {
-            console.log('🔍 Filtering programs for selected portfolio ID:', selectedPortfolioId);
-            console.log('🔍 Available program data before filtering:', programTypeData.map(p => ({
-                id: p.CHILD_ID,
-                name: p.CHILD_NAME,
-                parentId: p.COE_ROADMAP_PARENT_ID,
-                type: p.COE_ROADMAP_TYPE
-            })));
             
             // Find programs that belong to the selected portfolio
             filteredData = programTypeData.filter(item => 
@@ -193,15 +155,8 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
                     parent.COE_ROADMAP_PARENT_ID === selectedPortfolioId
                 )
             );
-            console.log('🔍 Filtered for portfolio', selectedPortfolioId, ':', filteredData.length, 'records');
-            console.log('🔍 Filtered results:', filteredData.map(p => ({
-                id: p.CHILD_ID,
-                name: p.CHILD_NAME,
-                parentId: p.COE_ROADMAP_PARENT_ID,
-                type: p.COE_ROADMAP_TYPE
-            })));
         } else {
-            console.log('🔍 No portfolio filter applied - showing all programs');
+            // No portfolio filter applied - showing all programs
         }
 
         // Build parent-child hierarchy
@@ -338,12 +293,6 @@ const processProgramDataFromAPI = async (selectedPortfolioId = null) => {
             return a.name.localeCompare(b.name);
         });
         
-        console.log('✅ Successfully processed', sortedData.length, 'program items from API');
-        console.log('🔍 First few items after sorting:', sortedData.slice(0, 5).map(item => ({
-            name: item.name,
-            isProgram: item.isProgram,
-            parentId: item.parentId
-        })));
         return sortedData;
         
     } catch (error) {
@@ -358,7 +307,7 @@ export const processProgramData = processProgramDataFromAPI;
 // API function to fetch unified backend data and process for sub-program view
 const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
     try {
-        console.log('🚀 Loading sub-program data from backend API...');
+
         
         // Fetch unified dataset from backend
         const response = await fetch('/api/data');
@@ -374,14 +323,14 @@ const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
         // Extract both hierarchy and investment data from structured response
         const hierarchyData = result.data.hierarchy;
         const investmentData = result.data.investment;
-        console.log('📊 Raw hierarchy data loaded:', hierarchyData.length, 'records');
-        console.log('📊 Raw investment data loaded:', investmentData.length, 'records');
+
+
 
         // Filter hierarchy for SubProgram data (note: 'Sub-Program' with hyphen in actual data)
         const subProgramTypeData = hierarchyData.filter(item => 
             item.COE_ROADMAP_TYPE === 'Sub-Program'
         );
-        console.log('🎯 Filtered sub-program data:', subProgramTypeData.length, 'records');
+
 
         // Build simplified data structure for SubProgramGanttChart component
         const projects = [];
@@ -443,16 +392,11 @@ const processSubProgramDataFromAPI = async (selectedProgramId = null) => {
             }
         });
         
-        console.log('✅ Processed data:', {
-            projects: projects.length,
-            milestones: milestones.length
-        });
-        
         return { projects, milestones };
         
         // If no Sub-Program hierarchy found, return empty structure
         if (subProgramTypeData.length === 0) {
-            console.log('⚠️ No Sub-Program hierarchy found');
+
             return { projects: [], milestones: [] };
         }
 
@@ -472,7 +416,7 @@ export const processSubProgramData = processSubProgramDataFromAPI;
  */
 const fetchInvestmentData = async () => {
     try {
-        console.log('🚀 Fetching investment data from /api/data...');
+
         
         // Use the same endpoint as Portfolio and Program charts
         const response = await fetch('/api/data');
@@ -487,7 +431,7 @@ const fetchInvestmentData = async () => {
         
         // Extract investment data from the structured response
         const investmentData = result.data.investment;
-        console.log('✅ Investment data loaded:', investmentData.length, 'records');
+
         
         return investmentData;
         
@@ -503,15 +447,15 @@ const fetchInvestmentData = async () => {
  */
 export const debugSupplyChainData = async () => {
     try {
-        console.log('🔍 === DEBUG: Analyzing all Supply Chain data ===');
+
         
         // Fetch all investment data
         const investmentData = await fetchInvestmentData();
-        console.log('📊 Total investment records fetched:', investmentData.length);
+
         
         // Find all Supply Chain records
         const allSupplyChain = investmentData.filter(item => item.INV_FUNCTION === 'Supply Chain');
-        console.log('🔍 Total Supply Chain records (all types):', allSupplyChain.length);
+
         
         // Group by INV_EXT_ID
         const supplyChainGroups = {};
@@ -522,30 +466,30 @@ export const debugSupplyChainData = async () => {
             supplyChainGroups[item.INV_EXT_ID].push(item);
         });
         
-        console.log('🔍 Supply Chain unique projects:', Object.keys(supplyChainGroups).length);
+
         
         // Analyze each project
         Object.keys(supplyChainGroups).forEach(projectId => {
             const projectRecords = supplyChainGroups[projectId];
             const investmentRecord = projectRecords.find(r => r.ROADMAP_ELEMENT === 'Investment');
             
-            console.log(`\n📋 Project: ${projectId}`);
-            console.log(`  Name: ${investmentRecord?.INVESTMENT_NAME || 'NO INVESTMENT RECORD'}`);
-            console.log(`  Status: ${investmentRecord?.INV_OVERALL_STATUS || 'N/A'}`);
-            console.log(`  Market: ${investmentRecord?.INV_MARKET || 'NO MARKET'}`);
-            console.log(`  Type: ${investmentRecord?.CLRTY_INV_TYPE || 'N/A'}`);
-            console.log(`  Records count: ${projectRecords.length}`);
-            console.log(`  Record types: ${projectRecords.map(r => r.ROADMAP_ELEMENT).join(', ')}`);
+
+
+
+
+
+
+
             
             // Check if this would pass processRegionData filters
             const hasInvestmentRecord = !!investmentRecord;
             const hasMarket = investmentRecord?.INV_MARKET && investmentRecord.INV_MARKET.trim() !== '';
             const isCorrectType = investmentRecord && ["Non-Clarity item", "Project", "Programs"].includes(investmentRecord.CLRTY_INV_TYPE);
             
-            console.log(`  ✅ Has Investment Record: ${hasInvestmentRecord}`);
-            console.log(`  ✅ Has Market: ${hasMarket}`);
-            console.log(`  ✅ Correct Type: ${isCorrectType}`);
-            console.log(`  🎯 Would be processed: ${hasInvestmentRecord && hasMarket && isCorrectType}`);
+
+
+
+
         });
         
         return {
@@ -568,7 +512,7 @@ export const debugSupplyChainData = async () => {
  */
 export const processRegionData = async (filters = {}) => {
     try {
-        console.log('🔍 Processing region data with filters:', filters);
+
         
         // Fetch investment data from API
         const investmentData = await fetchInvestmentData();
@@ -577,12 +521,12 @@ export const processRegionData = async (filters = {}) => {
         const projectData = investmentData.filter(item =>
             ["Non-Clarity item", "Project", "Programs"].includes(item.CLRTY_INV_TYPE)
         );
-        console.log('🎯 Filtered project data:', projectData.length, 'records');
+
         
         // Debug: Check Supply Chain records specifically
         const supplyChainRecords = projectData.filter(item => item.INV_FUNCTION === 'Supply Chain');
-        console.log('🔍 Supply Chain records in filtered data:', supplyChainRecords.length);
-        console.log('🔍 Sample Supply Chain INV_EXT_IDs:', supplyChainRecords.slice(0, 5).map(r => r.INV_EXT_ID));
+
+
 
         // 2. Group all records for each project by its unique ID
         const projectGroups = {};
@@ -592,7 +536,7 @@ export const processRegionData = async (filters = {}) => {
             }
             projectGroups[item.INV_EXT_ID].push(item);
         });
-        console.log('📊 Project groups created:', Object.keys(projectGroups).length, 'projects');
+
 
         const processedProjects = [];
 
@@ -632,23 +576,23 @@ export const processRegionData = async (filters = {}) => {
             const beforeFilterCount = processedProjects.length;
             
             if (filters.region && filters.region !== 'All' && region !== filters.region) {
-                console.log(`🚫 Project ${projectId} filtered out by region: ${region} !== ${filters.region}`);
+
                 return;
             }
             if (filters.market && filters.market !== 'All' && market !== filters.market) {
-                console.log(`🚫 Project ${projectId} filtered out by market: ${market} !== ${filters.market}`);
+
                 return;
             }
             if (filters.function && filters.function !== 'All' && mainRecord.INV_FUNCTION !== filters.function) {
-                console.log(`🚫 Project ${projectId} filtered out by function: ${mainRecord.INV_FUNCTION} !== ${filters.function}`);
+
                 return;
             }
             if (filters.tier && filters.tier !== 'All' && mainRecord.INV_TIER?.toString() !== filters.tier) {
-                console.log(`🚫 Project ${projectId} filtered out by tier: ${mainRecord.INV_TIER} !== ${filters.tier}`);
+
                 return;
             }
             
-            console.log(`✅ Project ${projectId} (${mainRecord.INVESTMENT_NAME}) passed all filters`);
+
 
             // --- If a project passes the filters, process its details ---
 
@@ -713,7 +657,7 @@ export const processRegionData = async (filters = {}) => {
             });
         });
 
-        console.log('✅ Processed projects:', processedProjects.length, 'final projects');
+
 
         // 8. Return the final list, sorted by name
         return processedProjects.sort((a, b) => a.name.localeCompare(b.name));
@@ -730,7 +674,7 @@ export const processRegionData = async (filters = {}) => {
  */
 export const getRegionFilterOptions = async () => {
     try {
-        console.log('🔍 Loading region filter options...');
+
         
         // Fetch investment data from API
         const investmentData = await fetchInvestmentData();
@@ -742,7 +686,7 @@ export const getRegionFilterOptions = async () => {
             item.INV_MARKET && item.INV_MARKET.trim() !== ''
         );
         
-        console.log('🎯 Records for filter options:', projectData.length, 'investment records');
+
 
         // Extract unique values for each filter type
         const regions = new Set();
@@ -771,13 +715,6 @@ export const getRegionFilterOptions = async () => {
             functions: Array.from(functions).sort(),
             tiers: Array.from(tiers).sort()
         };
-
-        console.log('✅ Filter options loaded:', {
-            regions: options.regions.length,
-            markets: options.markets.length,
-            functions: options.functions.length,
-            tiers: options.tiers.length
-        });
 
         return options;
     } catch (error) {

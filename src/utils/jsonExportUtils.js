@@ -6,8 +6,6 @@
  */
 export const exportRegionFilterOptionsToJSON = async () => {
     try {
-        console.log('📁 Exporting Region Filter Options to JSON...');
-        
         // Import the function (assuming it's available in the same module)
         const { getRegionFilterOptions } = await import('./apiDataService.js');
         
@@ -38,7 +36,6 @@ export const exportRegionFilterOptionsToJSON = async () => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
-        console.log('✅ Filter options exported to:', link.download);
         return link.download;
         
     } catch (error) {
@@ -52,8 +49,6 @@ export const exportRegionFilterOptionsToJSON = async () => {
  */
 export const exportProcessRegionDataToJSON = async (filters = { region: 'All', market: 'All', function: 'All', tier: 'All' }) => {
     try {
-        console.log('📁 Exporting Process Region Data to JSON with filters:', filters);
-        
         // Import the function (assuming it's available in the same module)
         const { processRegionData } = await import('./apiDataService.js');
         
@@ -110,7 +105,6 @@ export const exportProcessRegionDataToJSON = async (filters = { region: 'All', m
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
-        console.log('✅ Process region data exported to:', link.download);
         return link.download;
         
     } catch (error) {
@@ -124,14 +118,9 @@ export const exportProcessRegionDataToJSON = async (filters = { region: 'All', m
  */
 export const exportAllRegionData = async (filters = { region: 'All', market: 'All', function: 'All', tier: 'All' }) => {
     try {
-        console.log('📁 Exporting all region data...');
         
         const filterOptionsFile = await exportRegionFilterOptionsToJSON();
         const processDataFile = await exportProcessRegionDataToJSON(filters);
-        
-        console.log('✅ All exports completed:');
-        console.log('  1. Filter Options:', filterOptionsFile);
-        console.log('  2. Process Data:', processDataFile);
         
         return {
             filterOptionsFile,
@@ -148,8 +137,3 @@ export const exportAllRegionData = async (filters = { region: 'All', market: 'Al
 window.exportRegionFilterOptions = exportRegionFilterOptionsToJSON;
 window.exportProcessRegionData = exportProcessRegionDataToJSON;
 window.exportAllRegionData = exportAllRegionData;
-
-console.log('📁 JSON Export utilities loaded. Available functions:');
-console.log('  - exportRegionFilterOptions()');
-console.log('  - exportProcessRegionData(filters)');
-console.log('  - exportAllRegionData(filters)');
