@@ -504,7 +504,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
             return total + barHeight + ultraMinimalSpacing;
-        }, Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Increased top margin for first row milestone labels
+        }, Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Absolute minimum top margin - just enough to prevent clipping
     };
 
     return (
@@ -739,7 +739,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                         {getScaledFilteredData().map((project, index) => {
                             const scaledData = getScaledFilteredData();
                             const ultraMinimalSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing
-                            const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
+                            const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                             const yOffset = scaledData
                                 .slice(0, index)
                                 .reduce((total, p) => total + calculateBarHeight(p) + ultraMinimalSpacing, topMargin);
@@ -821,7 +821,7 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                                 // Calculate cumulative Y offset with ultra-minimal spacing to pack rows ultra-tightly
                                 const scaledData = getScaledFilteredData();
                                 const ultraMinimalSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing
-                                const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
+                                const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                                 const yOffset = scaledData
                                     .slice(0, index)
                                     .reduce((total, p) => total + calculateBarHeight(p) + ultraMinimalSpacing, topMargin);

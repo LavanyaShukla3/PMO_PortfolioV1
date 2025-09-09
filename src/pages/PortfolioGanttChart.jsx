@@ -427,7 +427,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
             return total + barHeight + ultraMinimalSpacing;
-        }, Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Increased top margin for first row milestone labels
+        }, Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Absolute minimum top margin - just enough to prevent clipping
     };
 
     return (
@@ -711,7 +711,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                 // Calculate cumulative Y offset with minimal spacing to pack rows tightly
                                 const scaledData = getScaledFilteredData();
                                 const minimalRowSpacing = Math.round(2 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Minimal spacing
-                                const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
+                                const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                                 const yOffset = scaledData
                                     .slice(0, index)
                                     .reduce((total, p) => total + calculateBarHeight(p) + minimalRowSpacing, topMargin);

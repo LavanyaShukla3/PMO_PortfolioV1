@@ -824,7 +824,7 @@ const RegionRoadMap = () => {
                         {getScaledFilteredData().map((project, index) => {
                             const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                             const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                            const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
+                            const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                             const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                 const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                 return total + pRowHeight + rowSpacing;
@@ -897,7 +897,7 @@ const RegionRoadMap = () => {
                                     {getScaledFilteredData().map((project, index) => {
                                         const projectRowHeight = calculateRowHeight(project.name, project.milestones);
                                         const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                                        const topMargin = Math.round(32 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Increased top margin for first row milestone labels
+                                        const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                                         const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
                                             const pRowHeight = calculateRowHeight(p.name, p.milestones);
                                             return total + pRowHeight + rowSpacing;
