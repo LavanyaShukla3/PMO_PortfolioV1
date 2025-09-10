@@ -907,7 +907,7 @@ const RegionRoadMap = () => {
                                         // Calculate Y positions with proper milestone spacing
                                         const totalHeight = projectRowHeight;
                                         const centerY = yOffset + totalHeight / 2;
-                                        const ganttBarY = yOffset + milestoneHeights.above + Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0));
+                                        const ganttBarY = yOffset + Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)) + milestoneHeights.above;
                                         const milestoneY = ganttBarY + 6; // Center milestones with the 12px bar
 
                                         return (
@@ -939,7 +939,7 @@ const RegionRoadMap = () => {
                                                         <rect
                                                             key={`bar-${project.id}`}
                                                             x={startX}
-                                                            y={ganttBarY + (responsiveConstants.TOUCH_TARGET_SIZE / 2) - 6}
+                                                            y={ganttBarY}
                                                             width={Math.max(width + 2, 4)} // Add 2px to width for milestone alignment, minimum 4px
                                                             height={12} // 12px height instead of TOUCH_TARGET_SIZE
                                                             rx={3} // Keep 3px border radius
@@ -956,7 +956,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={centerY} // Use center point for perfect alignment
+                                                        y={milestoneY} // Use milestoneY for proper alignment with bar center
                                                         complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}

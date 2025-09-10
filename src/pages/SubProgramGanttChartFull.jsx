@@ -703,12 +703,9 @@ const SubProgramGanttChart = ({ selectedSubProgramId, selectedSubProgramName, se
                                             
                                             {/* Render Milestones using already processed milestone data */}
                                             {processedMilestones.map((milestone, milestoneIndex) => {
-                                                // EXACT SAME LOGIC AS PORTFOLIOGANTTCHART
-                                                // Position milestone at: yOffset + (totalHeight - TOUCH_TARGET_SIZE) / 2 + (TOUCH_TARGET_SIZE / 2)
-                                                // This ensures perfect alignment and no overlaps
-                                                // Position milestone markers to align perfectly with the center of the 12px Gantt bar
-                                                const ganttBarHeight = 12;
-                                                const milestoneY = centeredY + (ganttBarHeight / 2); // Perfect center alignment with bar
+                                                // Fix: The GanttBar renders its rect at y+8 with height 12px
+                                                // So the center of the actual bar is at centeredY + 8 + 6 = centeredY + 14
+                                                const milestoneY = centeredY + 14; // Align with center of the actual bar rect
                                                 
                                                 return (
                                                     <MilestoneMarker
