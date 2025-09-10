@@ -62,13 +62,14 @@ class DatabricksClient:
             self.connection = None
             logger.info("Disconnected from Databricks")
     
-    def execute_query(self, query: str, timeout: int = 600, use_cache: bool = True, cache_ttl: int = 1800) -> List[Dict[str, Any]]:
+    def execute_query(self, query: str, parameters: Optional[Dict[str, Any]] = None, timeout: int = 600, use_cache: bool = True, cache_ttl: int = 1800) -> List[Dict[str, Any]]:
         """
         Execute a SQL query and return results as a list of dictionaries.
-        Enhanced with caching support.
+        Enhanced with caching support and parameterized queries for security.
         
         Args:
             query (str): The SQL query to execute
+            parameters (Dict[str, Any], optional): Parameters for parameterized queries
             timeout (int): Query timeout in seconds (default: 600 = 10 minutes)
             use_cache (bool): Whether to use caching for this query
             cache_ttl (int): Cache time-to-live in seconds (default 30 minutes)
@@ -76,9 +77,12 @@ class DatabricksClient:
         Returns:
             List[Dict[str, Any]]: Query results as list of dictionaries
         """
+        # Create cache key including parameters for security
+        cache_key = f"{query}_{str(parameters) if parameters else ''}"
+        
         # Check cache first if enabled
         if use_cache:
-            cached_result = cache_service.get(query)
+            cached_result = cache_service.get(cache_key)
             if cached_result is not None:
                 logger.info(f"🚀 Cache hit! Returning {len(cached_result)} cached rows")
                 return cached_result
@@ -95,7 +99,12 @@ class DatabricksClient:
                 query = query.rstrip(';') + "\nLIMIT 100;"
             
             logger.info(f"🔍 Executing query (length: {len(query)} chars)")
-            cursor.execute(query)
+            
+            # Execute with or without parameters
+            if parameters:
+                cursor.execute(query, parameters)
+            else:
+                cursor.execute(query)
             
             # Get column names
             columns = [desc[0] for desc in cursor.description]
@@ -110,7 +119,7 @@ class DatabricksClient:
             
             # Cache the results if caching is enabled
             if use_cache and results:
-                cache_service.set(query, results, ttl=cache_ttl)
+                cache_service.set(cache_key, results, ttl=cache_ttl)
             
             return results
             

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
-import { processPortfolioData } from '../services/apiDataService';
+import { fetchPortfolioData } from '../services/progressiveApiService';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -181,6 +181,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const leftPanelScrollRef = useRef(null);
 
     const { startDate } = getTimelineRange();
+    console.log('� Responsive constants:', responsiveConstants);
+    console.log('�📅 Timeline start date:', startDate?.toISOString());
     const totalWidth = responsiveConstants.MONTH_WIDTH * responsiveConstants.TOTAL_MONTHS;
 
     // Handle window resize and zoom changes
@@ -219,41 +221,45 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         setZoomLevel(1.0);
     };
 
-    // Load data from API
+    // Progressive data loading
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const itemsPerPage = 20; // Load 20 items at a time
+    
+    // Load data progressively from API
     useEffect(() => {
-        let isCurrentRequest = true; // Track if this effect is still current
+        let isCurrentRequest = true;
         
-        const loadData = async () => {
+        const loadInitialData = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 
-                const data = await processPortfolioData();
+                const response = await fetchPortfolioData(1, itemsPerPage);
+                console.log('📥 Initial data loaded:', response);
                 
-                // Only update state if this is still the current request
                 if (isCurrentRequest) {
-                    setProcessedData(data);
-                    setFilteredData(data);
+                    setProcessedData(response.data);
+                    setFilteredData(response.data); // This is already processed data from fetchPortfolioData
+                    setTotalItems(response.totalCount);
+                    setHasMore(response.hasMore);
+                    setCurrentPage(1);
 
-                    // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
+                    // Initial scroll to show current month - 1
                     setTimeout(() => {
                         if (timelineScrollRef.current) {
-                            // Use utility function to calculate proper scroll position
                             const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
-
                             timelineScrollRef.current.scrollLeft = scrollPosition;
-                            // Sync gantt scroll position
                             if (ganttScrollRef.current) {
                                 ganttScrollRef.current.scrollLeft = scrollPosition;
                             }
                         }
                     }, 100);
-                } else {
-                    // Discarding stale API response
                 }
             } catch (err) {
                 if (isCurrentRequest) {
-                    console.error('Failed to load portfolio data from API:', err);
+                    console.error('Failed to load portfolio data:', err);
                     setError(err.message);
                 }
             } finally {
@@ -263,13 +269,33 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             }
         };
 
-        loadData();
+        loadInitialData();
         
-        // Cleanup function to cancel stale requests
         return () => {
             isCurrentRequest = false;
         };
-    }, []); // Remove responsiveConstants dependency to prevent re-runs
+    }, []);
+
+    // Load more data function
+    const loadMoreData = async () => {
+        if (!hasMore || loading) return;
+        
+        try {
+            setLoading(true);
+            const nextPage = currentPage + 1;
+            const response = await fetchPortfolioData(nextPage, itemsPerPage);
+            
+            setProcessedData(prev => [...prev, ...response.data]);
+            setFilteredData(prev => [...prev, ...response.data]);
+            setCurrentPage(nextPage);
+            setHasMore(response.hasMore);
+        } catch (err) {
+            console.error('Failed to load more data:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -299,7 +325,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         }
     };
 
-    const parentNames = ['All', ...Array.from(new Set(processedData.map(item => item.parentName)))];
+    const parentNames = ['All', ...Array.from(new Set((processedData || []).map(item => item.parentName)))];
 
     const handleParentChange = (e) => {
         const value = e.target.value;
@@ -314,14 +340,23 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     // Apply project scaling based on zoom level
     const getScaledFilteredData = () => {
+        // Ensure filteredData is always an array
+        const safeFilteredData = filteredData || [];
+        
+        console.log('🎯 getScaledFilteredData called:', {
+            filteredDataLength: safeFilteredData.length,
+            sampleItem: safeFilteredData[0],
+            projectScale: responsiveConstants.PROJECT_SCALE
+        });
+        
         const projectScale = responsiveConstants.PROJECT_SCALE;
         if (projectScale >= 1.0) {
             // Normal or zoomed out - show all or more projects
-            return filteredData;
+            return safeFilteredData;
         } else {
             // Zoomed in (PROJECT_SCALE < 1.0) - show fewer projects
-            const targetCount = Math.max(1, Math.round(filteredData.length * projectScale));
-            return filteredData.slice(0, targetCount);
+            const targetCount = Math.max(1, Math.round(safeFilteredData.length * projectScale));
+            return safeFilteredData.slice(0, targetCount);
         }
     };
 
@@ -427,11 +462,53 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     return (
         <div className="w-full flex flex-col">
-            {/* Loading State */}
+            {/* Loading Status Badge - Top Right */}
             {loading && (
-                <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <span className="ml-3">Loading portfolio data...</span>
+                <div 
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        width: 'auto',
+                        height: 'auto',
+                        padding: '8px 15px',
+                        zIndex: 1000,
+                        backgroundColor: '#2196F3',
+                        color: 'white',
+                        borderRadius: '15px',
+                        fontSize: '0.9em',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>{currentPage === 1 ? 'Loading...' : `Loading page ${currentPage}`}</span>
+                </div>
+            )}
+
+            {/* Load More Data Button - Small Badge */}
+            {hasMore && !loading && (
+                <div 
+                    style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        width: 'auto',
+                        height: 'auto',
+                        padding: '8px 15px',
+                        zIndex: 1000,
+                        backgroundColor: '#2196F3',
+                        color: 'white',
+                        borderRadius: '15px',
+                        fontSize: '0.9em',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                        cursor: 'pointer'
+                    }}
+                    onClick={loadMoreData}
+                >
+                    Load More ({totalItems - filteredData.length})
                 </div>
             )}
 
@@ -632,6 +709,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                     <div style={{ position: 'relative', height: getTotalHeight() }}>
                         {getScaledFilteredData().map((project, index) => {
                             const scaledData = getScaledFilteredData();
+                            console.log('🎨 Rendering project:', index, project.name, project);
+                            
                             const minimalRowSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing
                             // Make first row top margin more compact
                             const topMargin = index === 0 ? Math.round(16 * (responsiveConstants.ZOOM_LEVEL || 1.0)) : 0;
@@ -705,6 +784,12 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             {getScaledFilteredData().map((project, index) => {
                                 // Calculate cumulative Y offset with minimal spacing to pack rows tightly
                                 const scaledData = getScaledFilteredData();
+                                console.log('📊 Rendering Gantt bar for:', index, project.name, {
+                                    startDate: project.startDate,
+                                    endDate: project.endDate,
+                                    milestones: project.milestones?.length || 0
+                                });
+                                
                                 const minimalRowSpacing = Math.round(2 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Minimal spacing
                                 const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                                 const yOffset = scaledData
@@ -714,14 +799,25 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                 const projectStartDate = parseDate(project.startDate);
                                 const projectEndDate = parseDate(project.endDate);
                                 
+                                console.log('📅 Parsed project dates:', {
+                                    projectStartDate: projectStartDate?.toISOString(),
+                                    projectEndDate: projectEndDate?.toISOString()
+                                });
+                                
                                 // Skip rendering if dates are invalid
                                 if (!projectStartDate || !projectEndDate) {
+                                    console.warn('⚠️ Skipping project due to invalid dates:', project.name);
                                     return null;
                                 }
                                 
                                 const startX = calculatePosition(projectStartDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const endX = calculatePosition(projectEndDate, startDate, responsiveConstants.MONTH_WIDTH);
                                 const width = endX - startX;
+                                
+                                console.log('📏 Position calculations:', {
+                                    startX, endX, width, yOffset,
+                                    monthWidth: responsiveConstants.MONTH_WIDTH
+                                });
 
                                 // Calculate the project's actual content height
                                 const totalHeight = calculateBarHeight(project);

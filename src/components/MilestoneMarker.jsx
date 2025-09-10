@@ -27,6 +27,9 @@ const MilestoneMarker = ({
     shouldRenderShape = true, // Whether to render the diamond shape (only first in month)
     allMilestonesInProject = [], // All milestones in the project for ±4 months check
     currentMilestoneDate = null, // Current milestone date for proximity check
+    // CRITICAL FIX: New props to control positioning mode
+    useTopAnchoring = false, // Whether to use top-anchoring instead of centering
+    hasValidBar = false, // Whether the project has a valid Gantt bar
 }) => {
     // Zoom-responsive sizing - REDUCED: Smaller milestone markers
     const zoomScale = Math.max(0.5, Math.min(1.5, zoomLevel)); // Clamp zoom between 0.5 and 1.5
@@ -39,9 +42,29 @@ const MilestoneMarker = ({
     const yOffset = 0; // Position milestone on the Gantt bar instead of above it
     const isComplete = complete === 'Completed';
     
-    // ISSUE FIX: Calculate precise vertical centering
-    // The y prop passed should be the center of the bar, so we need to offset by half the milestone size
-    const verticalCenterOffset = -size / 2;
+    // CRITICAL FIX: Complete override of positioning when useTopAnchoring is true
+    let finalY, finalVerticalOffset;
+    if (useTopAnchoring) {
+        // Top-anchoring mode: use Y coordinate as-is, no centering offset
+        finalY = y;
+        finalVerticalOffset = 0;
+    } else {
+        // Legacy centering mode: apply centering offset
+        finalY = y + yOffset;
+        finalVerticalOffset = -size / 2;
+    }
+    
+    // DEBUG LOGGING for MilestoneMarker
+    if (label && label.includes('Migrate')) { // Only log for a specific milestone to avoid spam
+        console.log(`🔍 MilestoneMarker DEBUG for "${label}"`);
+        console.log(`  📥 Input y: ${y}`);
+        console.log(`  🎯 useTopAnchoring: ${useTopAnchoring}`);
+        console.log(`  📏 size: ${size}`);
+        console.log(`  🔄 finalY: ${finalY}`);
+        console.log(`  📐 finalVerticalOffset: ${finalVerticalOffset}`);
+        console.log(`  🎨 Final render Y: ${finalY + finalVerticalOffset}`);
+        console.log(`  ---`);
+    }
 
     // DYNAMIC WRAPPING: Allow label to stretch between neighboring milestones with alternating row awareness
     const truncateLabel = (labelText, currentLabelPosition) => {
@@ -185,10 +208,10 @@ const MilestoneMarker = ({
             {shouldRenderShape && (
                 <rect 
                     x={Math.round(x)} 
-                    y={Math.round(y + yOffset + verticalCenterOffset)} 
+                    y={Math.round(finalY + finalVerticalOffset)} 
                     width={size} 
                     height={size} 
-                    transform={`rotate(45, ${Math.round(x + size / 2)}, ${Math.round(y + yOffset + verticalCenterOffset + size / 2)})`}
+                    transform={`rotate(45, ${Math.round(x + size / 2)}, ${Math.round(finalY + finalVerticalOffset + size / 2)})`}
                     fill={isGrouped ? 'black' : (isComplete ? '#005CB9' : 'white')}
                     stroke={isGrouped ? 'white' : '#005CB9'}
                     strokeWidth={2}
@@ -206,8 +229,8 @@ const MilestoneMarker = ({
                             key={`${monthKey}-horizontal`}
                             x={x + size / 2}
                             y={labelPosition === 'below'
-                                ? y + yOffset + verticalCenterOffset + size + (isMobile ? 25 : 22) // Below marker - increased spacing
-                                : y + yOffset + verticalCenterOffset - (isMobile ? 17 : 15)} // Above marker - reduced spacing
+                                ? finalY + finalVerticalOffset + size + (isMobile ? 25 : 22) // Below marker - increased spacing
+                                : finalY + finalVerticalOffset - (isMobile ? 17 : 15)} // Above marker - reduced spacing
                             textAnchor="middle"
                             className="text-l fill-gray-600"
                             style={{
@@ -226,8 +249,8 @@ const MilestoneMarker = ({
                             key={`${monthKey}-vertical-${index}`}
                             x={x + size / 2}
                             y={labelPosition === 'below'
-                                ? y + yOffset + verticalCenterOffset + size + (isMobile ? 25 : 22) + (index * lineHeight) // Below marker, stacked down - increased spacing
-                                : y + yOffset + verticalCenterOffset - (isMobile ? 17 : 15) - ((verticalLabels.length - 1 - index) * lineHeight)} // Above marker, stacked up - reduced spacing
+                                ? finalY + finalVerticalOffset + size + (isMobile ? 25 : 22) + (index * lineHeight) // Below marker, stacked down - increased spacing
+                                : finalY + finalVerticalOffset - (isMobile ? 17 : 15) - ((verticalLabels.length - 1 - index) * lineHeight)} // Above marker, stacked up - reduced spacing
                             textAnchor="middle"
                             className="text-l fill-gray-600"
                             style={{
@@ -248,7 +271,7 @@ const MilestoneMarker = ({
                         <text
                             key={index}
                             x={x + size / 2}
-                            y={y + yOffset + verticalCenterOffset + size + (isMobile ? 25 : 22) + (index * lineHeight)} // Increased space below marker for grouped labels
+                            y={finalY + finalVerticalOffset + size + (isMobile ? 25 : 22) + (index * lineHeight)} // Increased space below marker for grouped labels
                             textAnchor="middle"
                             className="text-l fill-gray-600"
                             style={{
@@ -266,8 +289,8 @@ const MilestoneMarker = ({
                         <text
                             x={x + size / 2}
                             y={labelPosition === 'below'
-                                ? y + yOffset + verticalCenterOffset + size + (isMobile ? 22 : 18)   // Below marker - increased spacing to match calculation
-                                : y + yOffset + verticalCenterOffset - (isMobile ? 18 : 15)}         // Above marker - reduced spacing to match calculation
+                                ? finalY + finalVerticalOffset + size + (isMobile ? 22 : 18)   // Below marker - increased spacing to match calculation
+                                : finalY + finalVerticalOffset - (isMobile ? 18 : 15)}         // Above marker - reduced spacing to match calculation
                             textAnchor="middle"
                             className="text-l fill-gray-600"
                             style={{

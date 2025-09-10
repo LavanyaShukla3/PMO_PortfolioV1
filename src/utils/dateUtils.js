@@ -23,10 +23,11 @@ export const parseDate = (dateString, context = '') => {
     
     // Handle different date formats
     try {
-        // First try to parse as a standard JavaScript date (ISO format from SQL)
-        // This handles formats like "2024-08-12" or "2024-08-12T00:00:00.000Z"
+        // First try to parse as a standard JavaScript date (includes GMT format)
+        // This handles formats like "2024-08-12", "2024-08-12T00:00:00.000Z", and "Tue, 10 Jan 2023 00:00:00 GMT"
         const directParse = new Date(dateString);
         if (!isNaN(directParse.getTime())) {
+            console.log('✅ Successfully parsed date:', dateString, '→', directParse.toISOString(), context ? `[${context}]` : '');
             return directParse;
         }
         
@@ -35,10 +36,12 @@ export const parseDate = (dateString, context = '') => {
             // Check if it looks like ISO format (YYYY-MM-DD)
             if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
                 const parsedDate = parse(dateString, 'yyyy-MM-dd', new Date());
+                console.log('✅ Parsed ISO date:', dateString, '→', parsedDate.toISOString(), context ? `[${context}]` : '');
                 return parsedDate;
             } else {
                 // Legacy dd-MMM-yy format
                 const parsedDate = parse(dateString, 'dd-MMM-yy', new Date());
+                console.log('✅ Parsed legacy date:', dateString, '→', parsedDate.toISOString(), context ? `[${context}]` : '');
                 return parsedDate;
             }
         } 
@@ -46,6 +49,7 @@ export const parseDate = (dateString, context = '') => {
         // MM/dd/yyyy format
         if (dateString.includes('/')) {
             const parsedDate = parse(dateString, 'MM/dd/yyyy', new Date());
+            console.log('✅ Parsed MM/dd/yyyy date:', dateString, '→', parsedDate.toISOString(), context ? `[${context}]` : '');
             return parsedDate;
         }
         

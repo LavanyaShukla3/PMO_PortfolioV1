@@ -38,11 +38,12 @@ const debugApiResponse = async (url, description) => {
  * @returns {Promise<Object>} Validation result with isValid, errors, and mode
  */
 export const validateApiData = async () => {
-
+    // Use the correct backend URLs
+    const API_BASE_URL = 'http://localhost:5000';
     
     const endpoints = [
-        { url: '/api/health', name: 'Health Check' },
-        { url: '/api/data', name: 'Main Data Endpoint' }
+        { url: `${API_BASE_URL}/api/health`, name: 'Health Check' },
+        { url: `${API_BASE_URL}/api/data/portfolio?page=1&limit=5`, name: 'Portfolio Data Endpoint' }
     ];
     
     const results = [];

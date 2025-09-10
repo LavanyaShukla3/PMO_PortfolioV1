@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { processRegionData, getRegionFilterOptions, debugSupplyChainData } from '../services/apiDataService';
+import { fetchRegionData, getRegionFilterOptions, debugSupplyChainData } from '../services/progressiveApiService';
 import { parseDate, calculatePosition, calculateMilestonePosition, getTimelineRange, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
 import { differenceInDays } from 'date-fns';
 import TimelineAxis from '../components/TimelineAxis';
@@ -17,7 +17,7 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 16,
         MILESTONE_FONT_SIZE: '8px',
         PROJECT_SCALE: 2.0, // Show significantly more projects
-        ROW_PADDING: 4 // Reduced padding between rows
+        ROW_PADDING: 3 // Minimal padding for maximum compactness
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
@@ -28,7 +28,7 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 20,
         MILESTONE_FONT_SIZE: '9px',
         PROJECT_SCALE: 1.5, // Show more projects
-        ROW_PADDING: 6
+        ROW_PADDING: 4 // Reduced padding
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
@@ -39,7 +39,7 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 24,
         MILESTONE_FONT_SIZE: '10px', // Reduced from default
         PROJECT_SCALE: 1.0, // Normal project count
-        ROW_PADDING: 8 // Standard padding
+        ROW_PADDING: 6 // Compact but readable padding
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
@@ -50,7 +50,7 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 30,
         MILESTONE_FONT_SIZE: '12px',
         PROJECT_SCALE: 0.7, // Show fewer projects
-        ROW_PADDING: 12 // More padding for larger rows
+        ROW_PADDING: 6 // Moderate padding for larger rows
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
@@ -61,7 +61,7 @@ const ZOOM_LEVELS = {
         TOUCH_TARGET_SIZE: 36,
         MILESTONE_FONT_SIZE: '14px',
         PROJECT_SCALE: 0.5, // Show significantly fewer projects
-        ROW_PADDING: 16 // Maximum padding for largest rows
+        ROW_PADDING: 8 // Standard padding for largest rows
     }
 };
 
@@ -122,6 +122,12 @@ const RegionRoadMap = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [processedData, setProcessedData] = useState([]);
+    
+    // Progressive loading state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const itemsPerPage = 20;
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -144,26 +150,26 @@ const RegionRoadMap = () => {
                 setLoading(true);
                 setError(null);
                 
-                
                 // Load filter options first
                 const options = await getRegionFilterOptions();
                 setFilterOptions(options);
-                setAvailableMarkets(options.markets);
+                setAvailableMarkets(options.markets || []);
 
-                // Load initial data with 'All' filters (show all data)
-                const defaultFilters = {
-                    region: 'All',
-                    market: 'All',
-                    function: 'All',
-                    tier: 'All'
-                };
-                const initialData = await processRegionData(defaultFilters);
-                setProcessedData(initialData);
+                // Load initial progressive data
+                const response = await fetchRegionData(null, { 
+                    page: 1, 
+                    limit: itemsPerPage 
+                });
+                
+                setProcessedData(response.data?.data || []);
+                setTotalItems(response.data?.totalCount || 0);
+                setHasMore((response.data?.data || []).length === itemsPerPage);
+                setCurrentPage(1);
 
             } catch (err) {
                 console.error('Failed to load initial data:', err);
                 setError(`Failed to load data: ${err.message}`);
-                setProcessedData([]); // Set empty array to prevent undefined errors
+                setProcessedData([]);
             } finally {
                 setLoading(false);
             }
@@ -189,7 +195,7 @@ const RegionRoadMap = () => {
     useEffect(() => {
         const updateMarkets = async () => {
             // Skip if no filter options loaded yet
-            if (filterOptions.markets.length === 0) {
+            if (!filterOptions.markets || filterOptions.markets.length === 0) {
                 return;
             }
 
@@ -197,14 +203,13 @@ const RegionRoadMap = () => {
                 setAvailableMarkets(filterOptions.markets);
             } else {
                 try {
-                    // Get all data for the selected region to determine available markets
-                    const regionData = await processRegionData({ 
-                        region: filters.region, 
-                        market: 'All', 
-                        function: 'All', 
-                        tier: 'All' 
+                    // Get sample data for the selected region to determine available markets
+                    const response = await fetchRegionData(filters.region, { 
+                        page: 1, 
+                        limit: 100 // Get more data to find available markets
                     });
                     
+                    const regionData = response.data?.data || [];
                     const regionSpecificMarkets = [...new Set(regionData.map(project => project.market))].filter(Boolean).sort();
                     setAvailableMarkets(regionSpecificMarkets);
 
@@ -214,7 +219,7 @@ const RegionRoadMap = () => {
                     }
                 } catch (err) {
                     console.error('Failed to filter markets by region:', err);
-                    setAvailableMarkets(filterOptions.markets);
+                    setAvailableMarkets(filterOptions.markets || []);
                 }
             }
         };
@@ -226,22 +231,66 @@ const RegionRoadMap = () => {
     useEffect(() => {
         const loadFilteredData = async () => {
             // Skip if still loading initial data or no filter options loaded yet
-            if (loading || filterOptions.regions.length === 0) {
+            if (loading || filterOptions.regions?.length === 0) {
                 return;
             }
             
             try {
-                const data = await processRegionData(filters);
-                setProcessedData(data);
+                setLoading(true);
+                
+                // Determine region filter
+                const regionFilter = filters.region === 'All' ? null : filters.region;
+                
+                // Load filtered data progressively
+                const response = await fetchRegionData(regionFilter, { 
+                    page: 1, 
+                    limit: itemsPerPage,
+                    // Add other filters when backend supports them
+                    market: filters.market === 'All' ? null : filters.market
+                });
+                
+                setProcessedData(response.data?.data || []);
+                setTotalItems(response.data?.totalCount || 0);
+                setHasMore((response.data?.data || []).length === itemsPerPage);
+                setCurrentPage(1);
+                
             } catch (err) {
                 console.error('Failed to process region data with filters:', err);
                 setError(`Failed to filter data: ${err.message}`);
-                setProcessedData([]); // Set empty array on error
+                setProcessedData([]);
+            } finally {
+                setLoading(false);
             }
         };
 
         loadFilteredData();
-    }, [filters, loading, filterOptions.regions.length]); // Include loading and filterOptions in dependencies
+    }, [filters, filterOptions.regions?.length]);
+
+    // Load more data function
+    const loadMoreData = async () => {
+        if (!hasMore || loading) return;
+        
+        try {
+            setLoading(true);
+            const nextPage = currentPage + 1;
+            const regionFilter = filters.region === 'All' ? null : filters.region;
+            
+            const response = await fetchRegionData(regionFilter, { 
+                page: nextPage, 
+                limit: itemsPerPage,
+                market: filters.market === 'All' ? null : filters.market
+            });
+            
+            setProcessedData(prev => [...prev, ...(response.data?.data || [])]);
+            setCurrentPage(nextPage);
+            setHasMore((response.data?.data || []).length === itemsPerPage);
+        } catch (err) {
+            console.error('Failed to load more data:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Update responsive constants when zoom level changes
     useEffect(() => {
@@ -442,25 +491,67 @@ const RegionRoadMap = () => {
         }
     };
 
-    const calculateRowHeight = (projectName = '', milestones = []) => {
-        // Responsive row height calculation
-        const baseHeight = responsiveConstants.BASE_BAR_HEIGHT || 10;
-        const textLines = Math.ceil(projectName.length / 30); // Approximate chars per line
-        const nameHeight = baseHeight + ((textLines - 1) * Math.round(12 * (responsiveConstants.ZOOM_LEVEL || 1.0)));
+    // Helper function to estimate text height for wrapped text
+    const estimateTextHeight = (text, fontSize, containerWidth) => {
+        if (!text) return fontSize;
         
-        // Calculate height needed for milestone labels with detailed breakdown
-        const milestoneHeights = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
+        // Estimate characters per line based on container width and average character width
+        const averageCharWidth = fontSize * 0.6; // Approximate character width
+        const availableWidth = containerWidth - 16; // Account for padding
+        const charsPerLine = Math.floor(availableWidth / averageCharWidth);
         
-        // Proper vertical stacking: above labels + bar + below labels
-        const basePadding = responsiveConstants.ROW_PADDING || 8;
-        const extraPadding = responsiveConstants.TOUCH_TARGET_SIZE > 24 ? Math.round(basePadding * 1.5) : basePadding;
+        if (charsPerLine <= 0) return fontSize; // Fallback for very narrow containers
         
-        // Use the larger of name height or milestone vertical stacking
-        const contentHeight = Math.max(nameHeight, milestoneHeights.above + baseHeight + milestoneHeights.below);
-        return contentHeight + extraPadding;
+        // Calculate number of lines needed
+        const lines = Math.ceil(text.length / charsPerLine);
+        
+        // Return height: number of lines * line height
+        return lines * (fontSize * 1.2); // 1.2 is the line-height we're using
     };
 
-    const rowHeight = calculateRowHeight();
+    const calculateRowHeight = (projectName = '', milestones = [], projectStartDate = null, projectEndDate = null, startDate = null, endDate = null) => {
+        // Dynamic content-based height calculation - no fixed padding
+        const baseBarHeight = 12; // Fixed 12px bar height as used in rendering
+        const fontSize = parseInt(responsiveConstants.FONT_SIZE) || 14;
+        
+        // Calculate actual milestone space needed
+        const milestoneHeights = calculateMilestoneLabelHeight(milestones, responsiveConstants.MONTH_WIDTH);
+        
+        // Calculate text height needed for potentially wrapped project name
+        const labelWidth = responsiveConstants.LABEL_WIDTH || 200;
+        const estimatedTextHeight = estimateTextHeight(projectName, fontSize, labelWidth);
+        const minTextHeight = Math.max(fontSize + 4, estimatedTextHeight + 4); // Ensure minimum readability
+        
+        // Check if this project will actually render a bar
+        const hasValidBar = projectStartDate && projectEndDate && startDate && endDate &&
+                          !(projectStartDate > endDate || projectEndDate < startDate);
+        
+        // CRITICAL FIX: Different height calculation based on whether bar exists
+        let contentHeight;
+        
+        if (hasValidBar) {
+            // With bar: milestone labels above + 12px bar + milestone labels below
+            contentHeight = milestoneHeights.above + baseBarHeight + milestoneHeights.below;
+        } else {
+            // Milestone-only: milestone labels above + minimal milestone space (8px) + milestone labels below
+            // This eliminates the artificial 12px bar space reservation
+            const minimalMilestoneSpace = 8; // Just enough space for milestone marker
+            contentHeight = milestoneHeights.above + minimalMilestoneSpace + milestoneHeights.below;
+        }
+        
+        const finalHeight = Math.max(minTextHeight, contentHeight) + 2;
+        
+        // DEBUG LOGGING
+        console.log(`🔍 calculateRowHeight DEBUG for "${projectName.substring(0, 20)}..."`);
+        console.log(`  📊 Milestone Heights:`, milestoneHeights);
+        console.log(`  📏 Text Height: ${minTextHeight}, Content Height: ${contentHeight}`);
+        console.log(`  🎯 hasValidBar: ${hasValidBar}`);
+        console.log(`  📐 Final Row Height: ${finalHeight}`);
+        console.log(`  ---`);
+        
+        // Row height = text needs OR content needs (whichever is larger)
+        return finalHeight; // +2px minimal separation
+    };
 
     // Display3: Monthly grouped milestone processing function
     // Updated: Now processes only SG3 milestones (filtered in dataService.js)
@@ -809,34 +900,51 @@ const RegionRoadMap = () => {
                             onScroll={handleLeftPanelScroll}
                         >
                                                 <div style={{ position: 'relative', height: getScaledFilteredData().reduce((total, project) => {
-                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                        const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                        const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                        const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                        return total + projectRowHeight + 1; // Minimal 1px spacing
                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}>
                         {getScaledFilteredData().map((project, index) => {
-                            const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                            const rowSpacing = responsiveConstants.ROW_PADDING || 8;
+                            const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                            const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                            const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                            const minimalSpacing = 1; // Just 1px for visual separation between projects
                             const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
                             const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
-                                const pRowHeight = calculateRowHeight(p.name, p.milestones);
-                                return total + pRowHeight + rowSpacing;
+                                const pStartDate = parseDate(p.startDate, `${p.name} - Project Start`);
+                                const pEndDate = parseDate(p.endDate, `${p.name} - Project End`);
+                                const pRowHeight = calculateRowHeight(p.name, p.milestones, pStartDate, pEndDate, startDate, endDate);
+                                return total + pRowHeight + minimalSpacing;
                             }, topMargin);
                                     return (
                                         <div
                                             key={project.id}
-                                            className="absolute flex flex-col justify-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
+                                            className="absolute flex flex-col justify-start border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors"
                                             style={{
                                                 top: yOffset,
                                                 height: projectRowHeight,
-                                                paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
+                                                paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '8px' : '6px',
+                                                paddingTop: '1px',
+                                                paddingBottom: '1px',
                                                 fontSize: responsiveConstants.FONT_SIZE,
+                                                lineHeight: '1.2',
                                                 width: '100%',
-                                                minHeight: responsiveConstants.TOUCH_TARGET_SIZE,
                                                 cursor: 'default'
                                             }}
                                         >
-                                            <div className="flex items-center justify-between w-full">
-                                                                                            <div className="flex flex-col justify-center">
-                                                <span className="font-medium text-gray-800 pr-2" title={project.name}>
+                                            <div className="flex items-start justify-between w-full h-full">
+                                                                                            <div className="flex flex-col justify-start flex-1 min-w-0 h-full">
+                                                <span 
+                                                    className="font-medium text-gray-800 pr-2 leading-tight" 
+                                                    title={project.name}
+                                                    style={{
+                                                        wordBreak: 'break-word',
+                                                        whiteSpace: 'normal',
+                                                        lineHeight: '1.2',
+                                                        fontSize: responsiveConstants.FONT_SIZE
+                                                    }}
+                                                >
                                                     {project.name}
                                                 </span>
                                             </div>
@@ -861,12 +969,16 @@ const RegionRoadMap = () => {
                                 <svg
                                     width={totalWidth}
                                     height={getScaledFilteredData().reduce((total, project) => {
-                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                        const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                                        const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                                        return total + projectRowHeight + 1; // Minimal 1px spacing
                                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                     style={{ height: getScaledFilteredData().reduce((total, project) => {
-                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                                        return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                        const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                                        const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                                        return total + projectRowHeight + 1; // Minimal 1px spacing
                                     }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0))) }}
                                 >
                                     {/* iv. Simple line-based swimlanes for RegionGanttChart */}
@@ -878,37 +990,62 @@ const RegionRoadMap = () => {
                                             y1="0"
                                             x2={i * responsiveConstants.MONTH_WIDTH}
                                             y2={getScaledFilteredData().reduce((total, project) => {
-                                                const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                                                return total + projectRowHeight + (responsiveConstants.ROW_PADDING || 8);
+                                                const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
+                                                const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
+                                                const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                                                return total + projectRowHeight + 1; // Minimal 1px spacing
                                             }, Math.round(10 * (responsiveConstants.ZOOM_LEVEL || 1.0)))}
                                             stroke="rgba(0,0,0,0.1)"
                                             strokeWidth="1"
                                         />
                                     ))}
                                     {getScaledFilteredData().map((project, index) => {
-                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones);
-                                        const rowSpacing = responsiveConstants.ROW_PADDING || 8;
-                                        const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
-                                        const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
-                                            const pRowHeight = calculateRowHeight(p.name, p.milestones);
-                                            return total + pRowHeight + rowSpacing;
-                                        }, topMargin);
-
-                                        // Parse project dates first
+                                        // Parse project dates first for accurate row height calculation
                                         const projectStartDate = parseDate(project.startDate, `${project.name} - Project Start`);
                                         const projectEndDate = parseDate(project.endDate, `${project.name} - Project End`);
                                         
+                                        const projectRowHeight = calculateRowHeight(project.name, project.milestones, projectStartDate, projectEndDate, startDate, endDate);
+                                        const minimalSpacing = 1; // Just 1px for visual separation between projects
+                                        const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Absolute minimum top margin - just enough to prevent clipping
+                                        
+                                        // Calculate row Y position with minimal spacing
+                                        const yOffset = getScaledFilteredData().slice(0, index).reduce((total, p) => {
+                                            const pStartDate = parseDate(p.startDate, `${p.name} - Project Start`);
+                                            const pEndDate = parseDate(p.endDate, `${p.name} - Project End`);
+                                            const pRowHeight = calculateRowHeight(p.name, p.milestones, pStartDate, pEndDate, startDate, endDate);
+                                            return total + pRowHeight + minimalSpacing; // Minimal spacing between rows
+                                        }, topMargin);
+
                                         // Process milestones after we have projectEndDate
                                         const milestones = processMilestonesWithPosition(project.milestones || [], startDate, responsiveConstants.MONTH_WIDTH, projectEndDate);
                                         
                                         // Get detailed milestone height breakdown for proper positioning
                                         const milestoneHeights = calculateMilestoneLabelHeight(project.milestones || [], responsiveConstants.MONTH_WIDTH);
                                         
-                                        // Calculate Y positions with proper milestone spacing
-                                        const totalHeight = projectRowHeight;
-                                        const centerY = yOffset + totalHeight / 2;
-                                        const ganttBarY = yOffset + Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)) + milestoneHeights.above;
-                                        const milestoneY = ganttBarY + 6; // Center milestones with the 12px bar
+                                        // Check if this project has a valid bar (both start and end dates within timeline)
+                                        const hasValidBar = projectStartDate && projectEndDate && 
+                                                          !(projectStartDate > endDate || projectEndDate < startDate);
+                                        
+                                        // FIXED: True top-anchoring without any centering inconsistencies
+                                        // Bar positioning: immediately after milestone labels above (no centering)
+                                        const ganttBarY = yOffset + milestoneHeights.above;
+                                        
+                                        // CRITICAL FIX: Milestone positioning with true top-anchoring
+                                        // For projects WITH bars: milestone aligns with bar top (no centering)
+                                        // For projects WITHOUT bars: milestone positioned with minimal space after labels above
+                                        const milestoneY = hasValidBar 
+                                            ? ganttBarY  // Align milestone TOP with bar TOP (not center)
+                                            : yOffset + milestoneHeights.above;  // For milestone-only: place at exact top of content area
+                                        
+                                        // DEBUG LOGGING for positioning
+                                        console.log(`🎯 POSITIONING DEBUG for "${project.name.substring(0, 20)}..."`);
+                                        console.log(`  📊 yOffset: ${yOffset}`);
+                                        console.log(`  📏 milestoneHeights:`, milestoneHeights);
+                                        console.log(`  🎯 hasValidBar: ${hasValidBar}`);
+                                        console.log(`  📐 ganttBarY: ${ganttBarY}`);
+                                        console.log(`  🔴 milestoneY: ${milestoneY}`);
+                                        console.log(`  🔵 projectRowHeight: ${projectRowHeight}`);
+                                        console.log(`  ---`);
 
                                         return (
                                             <g key={`project-${project.id}`} className="project-group">
@@ -956,7 +1093,7 @@ const RegionRoadMap = () => {
                                                     <MilestoneMarker
                                                         key={`${project.id}-milestone-${milestoneIndex}`}
                                                         x={milestone.x}
-                                                        y={milestoneY} // Use milestoneY for proper alignment with bar center
+                                                        y={milestoneY} // Use the fixed Y position
                                                         complete={milestone.status === 'Complete'}
                                                         label={milestone.label}
                                                         isSG3={milestone.isSG3}
@@ -980,6 +1117,9 @@ const RegionRoadMap = () => {
                                                         shouldRenderShape={milestone.shouldRenderShape}
                                                         allMilestonesInProject={milestone.allMilestonesInProject}
                                                         currentMilestoneDate={milestone.currentMilestoneDate}
+                                                        // CRITICAL FIX: Tell MilestoneMarker to use top-anchoring instead of centering
+                                                        useTopAnchoring={true} // Add this prop to eliminate internal centering
+                                                        hasValidBar={hasValidBar} // Pass bar existence info for positioning logic
                                                     />
                                                 ))}
                                             </g>
@@ -988,6 +1128,23 @@ const RegionRoadMap = () => {
                                 </svg>
                             </div>
                         </div>
+                    </div>
+                    
+                    {/* Load More Data Button */}
+                    {hasMore && !loading && (
+                        <div className="flex justify-center py-4">
+                            <button
+                                onClick={loadMoreData}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                            >
+                                Load More Data ({totalItems - processedData.length} remaining)
+                            </button>
+                        </div>
+                    )}
+                    
+                    {/* Progressive Loading Info */}
+                    <div className="text-sm text-gray-600 text-center py-2">
+                        Showing {processedData.length} of {totalItems} items
                     </div>
                 </div>
             )}
