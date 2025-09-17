@@ -94,9 +94,16 @@ class DatabricksClient:
             cursor = self.connection.cursor()
             
             # Add reasonable LIMIT to very long queries if not already present
+            # But allow larger limits for filtered queries (e.g., WHERE INV_EXT_ID IN (...))
             if len(query) > 2000 and "LIMIT" not in query.upper():
-                logger.warning("Adding LIMIT 100 to large query to prevent timeout")
-                query = query.rstrip(';') + "\nLIMIT 100;"
+                if "WHERE INV_EXT_ID IN" in query:
+                    # For filtered investment queries, use a much higher limit since we're targeting specific records
+                    # The CaTAlyst data exists but is beyond the 1000 row limit - trying 15000 to be absolutely sure
+                    logger.info("Adding LIMIT 15000 to filtered investment query to ensure all targeted records are included")
+                    query = query.rstrip(';') + "\nLIMIT 15000;"
+                else:
+                    logger.warning("Adding LIMIT 100 to large query to prevent timeout")
+                    query = query.rstrip(';') + "\nLIMIT 100;"
             
             logger.info(f"🔍 Executing query (length: {len(query)} chars)")
             

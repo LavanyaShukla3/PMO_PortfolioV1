@@ -32,7 +32,7 @@ const ZOOM_LEVELS = {
         MILESTONE_FONT_SIZE: '8px',
         PROJECT_SCALE: 2.0,
         ROW_PADDING: 4,
-        ROW_HEIGHT: 24
+        ROW_HEIGHT: 40 // Increased from 24
     },
     0.75: { // 75% - Zoom Out
         MONTH_WIDTH: 60,
@@ -45,7 +45,7 @@ const ZOOM_LEVELS = {
         MILESTONE_FONT_SIZE: '9px',
         PROJECT_SCALE: 1.5,
         ROW_PADDING: 6,
-        ROW_HEIGHT: 32
+        ROW_HEIGHT: 48 // Increased from 32
     },
     1.0: { // 100% - Default
         MONTH_WIDTH: 100,
@@ -58,7 +58,7 @@ const ZOOM_LEVELS = {
         MILESTONE_FONT_SIZE: '10px',
         PROJECT_SCALE: 1.0,
         ROW_PADDING: 8,
-        ROW_HEIGHT: 40
+        ROW_HEIGHT: 60 // Increased from 40
     },
     1.25: { // 125% - Zoom In
         MONTH_WIDTH: 125,
@@ -71,7 +71,7 @@ const ZOOM_LEVELS = {
         MILESTONE_FONT_SIZE: '11px',
         PROJECT_SCALE: 0.8,
         ROW_PADDING: 10,
-        ROW_HEIGHT: 48
+        ROW_HEIGHT: 72 // Increased from 48
     },
     1.5: { // 150% - Maximum Zoom In
         MONTH_WIDTH: 150,
@@ -84,7 +84,7 @@ const ZOOM_LEVELS = {
         MILESTONE_FONT_SIZE: '12px',
         PROJECT_SCALE: 0.7,
         ROW_PADDING: 12,
-        ROW_HEIGHT: 56
+        ROW_HEIGHT: 80 // Increased from 56
     }
 };
 
@@ -281,16 +281,26 @@ const VirtualizedPortfolioGanttChart = ({ onDrillToProgram }) => {
     const scaledFilteredData = useMemo(() => {
         if (!filteredData.length) return [];
 
-        const scale = responsiveConstants.PROJECT_SCALE || 1.0;
-        const maxProjects = Math.floor(filteredData.length * scale);
+        // Don't scale down at portfolio level - show all records
+        // Portfolio level should show complete data, especially records without investment data
+        return filteredData;
         
-        return filteredData.slice(0, Math.max(1, maxProjects));
-    }, [filteredData, responsiveConstants.PROJECT_SCALE]);
+        // Original scaling logic commented out for portfolio view
+        // const scale = responsiveConstants.PROJECT_SCALE || 1.0;
+        // const maxProjects = Math.floor(filteredData.length * scale);
+        // return filteredData.slice(0, Math.max(1, maxProjects));
+    }, [filteredData]);
 
     // Load data effect
     useEffect(() => {
         if (legacyData && !queryLoading) {
             // Process the data from react-query
+            console.log('📊 Portfolio data loaded:', {
+                totalRecords: legacyData.length,
+                recordsWithInvestmentData: legacyData.filter(r => r.hasInvestmentData).length,
+                recordsWithoutInvestmentData: legacyData.filter(r => !r.hasInvestmentData).length,
+                sampleRecord: legacyData[0]
+            });
             setProcessedData(legacyData);
             setFilteredData(legacyData);
             setLoading(false);
@@ -313,6 +323,12 @@ const VirtualizedPortfolioGanttChart = ({ onDrillToProgram }) => {
                     const data = await processPortfolioData();
                     
                     if (isCurrentRequest) {
+                        console.log('📊 Portfolio data loaded (fallback):', {
+                            totalRecords: data.length,
+                            recordsWithInvestmentData: data.filter(r => r.hasInvestmentData).length,
+                            recordsWithoutInvestmentData: data.filter(r => !r.hasInvestmentData).length,
+                            sampleRecord: data[0]
+                        });
                         setProcessedData(data);
                         setFilteredData(data);
                         

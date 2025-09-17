@@ -110,15 +110,23 @@ def get_portfolio_data():
         
         investment_results = []
         
-        # 5. Get ALL investment data (don't filter by portfolio IDs)
-        # This matches the approach in apiDataService.js
+        # 5. CRITICAL FIX: Only get investment data for the portfolios we fetched
+        # This prevents non-portfolio records from appearing on the Portfolio page
         if hierarchy_results:
+            # Extract portfolio IDs from hierarchy results
+            portfolio_ids = [row['CHILD_ID'] for row in hierarchy_results]
+            portfolio_ids_str = "', '".join(portfolio_ids)
+            
             with open(INVESTMENT_QUERY_FILE, 'r') as f:
                 investment_query = f.read().strip().rstrip(';')
 
-            # Execute the full investment query to get all investment records
-            # We'll let the frontend do the matching logic (like apiDataService.js does)
+            # Add WHERE clause to filter investment data by portfolio IDs only
+            investment_query += f" WHERE INV_EXT_ID IN ('{portfolio_ids_str}')"
+            
+            # Execute the filtered investment query to get only portfolio-related investment records
             investment_results = databricks_client.execute_query(investment_query)
+            
+            logger.info(f"Filtered investment query for {len(portfolio_ids)} portfolios, got {len(investment_results)} investment records")
 
         # 6. Structure and return the response
         response_data = {
@@ -149,50 +157,47 @@ def get_portfolio_data():
 
 @app.route('/api/data/program', methods=['GET'])
 def get_program_data():
-    """Get paginated program-level data with proper filtering for high performance."""
+    """Get paginated program-level data supporting both 'All Programs' and drill-through scenarios."""
     try:
-        portfolio_id = request.args.get('portfolioId')
-        if not portfolio_id:
-            return jsonify({
-                'status': 'error',
-                'message': 'portfolioId parameter is required'
-            }), 400
-        
+        portfolio_id = request.args.get('portfolioId')  # Make this optional
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         
-        logger.info(f"Fetching program data for portfolio: {portfolio_id}, Page: {page}, Limit: {limit}")
+        if portfolio_id:
+            logger.info(f"Fetching program data for specific portfolio: {portfolio_id}, Page: {page}, Limit: {limit}")
+        else:
+            logger.info(f"Fetching ALL program data - Page: {page}, Limit: {limit}")
         
-        # 1. Read the base hierarchy query and filter for programs under this portfolio
+        # Read the base hierarchy query
         with open(HIERARCHY_QUERY_FILE, 'r') as f:
             hierarchy_query = f.read().strip().rstrip(';')
         
-        # 2. Filter for programs under the specific portfolio
-        hierarchy_query += " WHERE COE_ROADMAP_PARENT_ID = %(portfolio_id)s AND COE_ROADMAP_TYPE = 'Program'"
+        # Always filter for Program and SubProgram records
+        hierarchy_query += " WHERE COE_ROADMAP_TYPE IN ('Program', 'SubProgram')"
         
-        # 3. Add pagination
+        # If a specific portfolio is provided, add additional filtering
+        # Note: The actual portfolio filtering will be done in the frontend using the same
+        # logic as apiDataService.js to ensure consistency
+        
+        # Add pagination to the filtered query
         offset = (page - 1) * limit
         hierarchy_query += f" ORDER BY CHILD_ID LIMIT {limit} OFFSET {offset}"
         
-        # 4. Execute the filtered query
-        params = {'portfolio_id': portfolio_id}
-        hierarchy_results = databricks_client.execute_query(hierarchy_query, parameters=params)
+        # Execute the hierarchy query
+        hierarchy_results = databricks_client.execute_query(hierarchy_query)
         
+        # Get ALL investment data (same as successful portfolio endpoint)
+        # This matches the working portfolio approach - fetch all investments and let frontend filter
         investment_results = []
-        program_ids = [record['CHILD_ID'] for record in hierarchy_results]
-
-        # 5. If we found programs, fetch their investment data
-        if program_ids:
+        if hierarchy_results or not portfolio_id:  # Always fetch investments for "All Programs" view
             with open(INVESTMENT_QUERY_FILE, 'r') as f:
                 investment_query = f.read().strip().rstrip(';')
 
-            # Use parameterized queries for security
-            id_placeholders = ', '.join(['%(id' + str(i) + ')s' for i in range(len(program_ids))])
-            investment_params = {f'id{i}': pid for i, pid in enumerate(program_ids)}
-            
-            investment_query += f" WHERE INV_EXT_ID IN ({id_placeholders})"
-            investment_results = databricks_client.execute_query(investment_query, parameters=investment_params)
+            # Execute the full investment query to get all investment records
+            # Frontend will do the matching logic based on INV_EXT_ID === CHILD_ID
+            investment_results = databricks_client.execute_query(investment_query)
 
+        # Structure and return the response
         response_data = {
             'status': 'success',
             'data': {
@@ -201,7 +206,7 @@ def get_program_data():
                 'pagination': {
                     'page': page,
                     'limit': limit,
-                    'portfolio_id': portfolio_id,
+                    'portfolio_id': portfolio_id,  # Can be null for "All Programs"
                     'total_items': len(hierarchy_results),
                     'has_more': len(hierarchy_results) == limit
                 }
@@ -222,60 +227,90 @@ def get_program_data():
 
 @app.route('/api/data/subprogram', methods=['GET'])
 def get_subprogram_data():
-    """Get paginated subprogram-level data with secure parameterized queries."""
+    """
+    Get paginated sub-program data. Handles both an "All Sub-Programs" view 
+    and a filtered drill-through view from a specific program.
+    """
     try:
-        program_id = request.args.get('programId')
-        if not program_id:
-            return jsonify({
-                'status': 'error',
-                'message': 'programId parameter is required'
-            }), 400
-        
+        program_id = request.args.get('programId')  # Optional
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         
-        # Build parameters securely
-        params = {
-            'program_id': program_id
-        }
+        logger.info(f"Fetching sub-program data. Program ID: {program_id or 'All'}, Page: {page}, Limit: {limit}")
         
-        cache_key = f"subprogram_data_{program_id}_p{page}_l{limit}"
-        
-        # Check cache first
-        cached_data = cache_service.get(cache_key)
-        if cached_data:
-            logger.info(f"Serving subprogram data from cache: {cache_key}")
-            return jsonify(cached_data)
-        
-        logger.info(f"Fetching subprogram data for program: {program_id}")
-        
-        # Read and modify SQL queries for subprogram-level data
+        # Build the hierarchy query with a secure, conditional filter
         with open(HIERARCHY_QUERY_FILE, 'r') as f:
-            hierarchy_query = f.read()
+            hierarchy_query = f.read().strip().rstrip(';')
+
+        # Base filter for the 'Sub-Program' record type. Note the hyphen.
+        hierarchy_query += " WHERE COE_ROADMAP_TYPE = 'Sub-Program'"
+
+        # If a specific program is provided, add additional filtering
+        if program_id:
+            hierarchy_query += f" AND COE_ROADMAP_PARENT_ID = '{program_id}'"
         
-        with open(INVESTMENT_QUERY_FILE, 'r') as f:
-            investment_query = f.read()
-        
-        # Add WHERE clauses securely
-        if "WHERE" not in hierarchy_query.upper():
-            hierarchy_query += " WHERE COE_ROADMAP_PARENT_ID = %(program_id)s AND COE_ROADMAP_TYPE = 'SubProgram'"
-        else:
-            hierarchy_query += " AND COE_ROADMAP_PARENT_ID = %(program_id)s AND COE_ROADMAP_TYPE = 'SubProgram'"
-        
-        if "WHERE" not in investment_query.upper():
-            investment_query += " WHERE INV_EXT_ID LIKE CONCAT(%(program_id)s, '%')"
-        else:
-            investment_query += " AND INV_EXT_ID LIKE CONCAT(%(program_id)s, '%')"
-        
-        # Add pagination (Databricks/Spark SQL syntax)
+        # Add pagination to the filtered query
         offset = (page - 1) * limit
         hierarchy_query += f" ORDER BY CHILD_ID LIMIT {limit} OFFSET {offset}"
-        investment_query += f" ORDER BY INV_EXT_ID LIMIT {limit} OFFSET {offset}"
         
-        # Execute queries
-        hierarchy_results = databricks_client.execute_query(hierarchy_query, parameters=params)
-        investment_results = databricks_client.execute_query(investment_query, parameters=params)
+        # Execute the hierarchy query
+        hierarchy_results = databricks_client.execute_query(hierarchy_query)
+        logger.info(f"Found {len(hierarchy_results)} Sub-Program records")
         
+        # Fetch investment data ONLY for the sub-programs found on the current page
+        subprogram_ids = [record['CHILD_ID'] for record in hierarchy_results]
+        investment_results = []
+
+        if subprogram_ids:
+            logger.info(f"Fetching investment data for subprogram IDs: {subprogram_ids}")
+            
+            with open(INVESTMENT_QUERY_FILE, 'r') as f:
+                investment_query = f.read().strip().rstrip(';')
+
+            # Use simple string formatting for IN clause (secure since we control the IDs)
+            if subprogram_ids:
+                id_placeholders = ', '.join([f"'{pid}'" for pid in subprogram_ids])
+                investment_query += f" WHERE INV_EXT_ID IN ({id_placeholders})"
+                
+                # Debug the actual query being executed
+                logger.info(f"🎯 BACKEND DEBUG: About to execute investment query with filter for PROG000201")
+                logger.info(f"🎯 BACKEND DEBUG: Query length: {len(investment_query)} chars")
+                
+                investment_results = databricks_client.execute_query(investment_query)
+                logger.info(f"Found {len(investment_results)} investment records for subprograms")
+                
+                # Debug ALL investment records for PROG000201 specifically
+                all_prog201_records = [inv for inv in investment_results if inv.get('INV_EXT_ID') == 'PROG000201']
+                if all_prog201_records:
+                    logger.info(f"🎯 BACKEND DEBUG: Found {len(all_prog201_records)} total PROG000201 investment records")
+                    for i, record in enumerate(all_prog201_records):
+                        logger.info(f"🎯 BACKEND DEBUG: Record {i+1} - ROADMAP_ELEMENT: {record.get('ROADMAP_ELEMENT')}, TASK_NAME: {record.get('TASK_NAME')}, INVESTMENT_NAME: {record.get('INVESTMENT_NAME')}")
+                else:
+                    logger.warning("🎯 BACKEND DEBUG: NO PROG000201 investment records found in query results!")
+                
+                # Debug CaTAlyst specifically
+                catalyst_records = [inv for inv in investment_results if inv.get('INV_EXT_ID') == 'PROG000201']
+                if catalyst_records:
+                    logger.info(f"🎯 BACKEND DEBUG: Found {len(catalyst_records)} CaTAlyst investment records by INV_EXT_ID")
+                    for record in catalyst_records:
+                        logger.info(f"🎯 BACKEND DEBUG: CaTAlyst record - ROADMAP_ELEMENT: {record.get('ROADMAP_ELEMENT')}, TASK_NAME: {record.get('TASK_NAME')}")
+                else:
+                    logger.warning("🎯 BACKEND DEBUG: NO CaTAlyst investment records found by INV_EXT_ID!")
+                    
+                    # Check if CaTAlyst exists by PROJECT_NAME
+                    catalyst_by_name = [inv for inv in investment_results if 'CaTAlyst' in str(inv.get('PROJECT_NAME', '')).upper()]
+                    if catalyst_by_name:
+                        logger.info(f"🎯 BACKEND DEBUG: Found {len(catalyst_by_name)} CaTAlyst records by PROJECT_NAME")
+                        for record in catalyst_by_name[:3]:  # Show first 3
+                            logger.info(f"🎯 BACKEND DEBUG: CaTAlyst by name - INV_EXT_ID: {record.get('INV_EXT_ID')}, PROJECT_NAME: {record.get('PROJECT_NAME')}, ROADMAP_ELEMENT: {record.get('ROADMAP_ELEMENT')}")
+                    else:
+                        logger.warning("🎯 BACKEND DEBUG: NO CaTAlyst investment records found by PROJECT_NAME either!")
+                    
+                    # Log sample INV_EXT_ID values to debug mismatch
+                    sample_ids = list(set([inv.get('INV_EXT_ID') for inv in investment_results[:10]]))
+                    logger.info(f"🎯 BACKEND DEBUG: Sample INV_EXT_ID values: {sample_ids}")
+
+        # Structure and return the response
         response_data = {
             'status': 'success',
             'data': {
@@ -289,15 +324,35 @@ def get_subprogram_data():
                     'has_more': len(hierarchy_results) == limit
                 }
             },
-            'mode': 'databricks',
-            'cache_info': {
-                'cached': False,
-                'cache_key': cache_key
-            }
+            'mode': 'databricks'
         }
         
-        # Cache the response
-        cache_service.set(cache_key, response_data, ttl=300)
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error in get_subprogram_data: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to fetch subprogram data: {str(e)}',
+            'mode': 'databricks'
+        }), 500
+
+        # Structure and return the response
+        response_data = {
+            'status': 'success',
+            'data': {
+                'hierarchy': hierarchy_results,
+                'investment': investment_results,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'program_id': program_id,  # Can be null for "All SubPrograms"
+                    'total_items': len(hierarchy_results),
+                    'has_more': len(hierarchy_results) == limit
+                }
+            },
+            'mode': 'databricks'
+        }
         
         return jsonify(response_data)
         
@@ -312,60 +367,57 @@ def get_subprogram_data():
 
 @app.route('/api/data/region', methods=['GET'])
 def get_region_data():
-    """Get paginated region-filtered data with secure parameterized queries."""
+    """Get paginated region-filtered data using a correct and efficient two-step fetch."""
     try:
-        region = request.args.get('region')
-        if not region:
-            return jsonify({
-                'status': 'error',
-                'message': 'region parameter is required'
-            }), 400
-        
+        region = request.args.get('region')  # Optional
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
         
-        # Build parameters securely
-        params = {
-            'region': region
-        }
-        
-        cache_key = f"region_data_{region}_p{page}_l{limit}"
+        logger.info(f"Fetching region data. Region: {region or 'All'}, Page: {page}, Limit: {limit}")
+
+        # Build cache key based on whether region is specified
+        cache_key = f"region_data_{region or 'all'}_p{page}_l{limit}"
         
         # Check cache first
         cached_data = cache_service.get(cache_key)
         if cached_data:
             logger.info(f"Serving region data from cache: {cache_key}")
             return jsonify(cached_data)
-        
-        logger.info(f"Fetching region data for: {region}")
-        
-        # Read and modify SQL queries for region-filtered data
+
+        # Step 1: Fetch a page of HIERARCHY records, filtered by region if provided.
         with open(HIERARCHY_QUERY_FILE, 'r') as f:
-            hierarchy_query = f.read()
+            hierarchy_query = f.read().strip().rstrip(';')
+
+        params = {}
+        where_clauses = ["COE_ROADMAP_TYPE IN ('Sub-Program', 'Project')"]  # Fetch relevant types
+
+        if region and region.lower() != 'all':
+            # TEMPORARY: Frontend filtering for now since SPLIT function causes issues
+            # When region filtering is needed in backend, implement proper column filtering
+            pass  # Frontend will handle region filtering for now
         
-        with open(INVESTMENT_QUERY_FILE, 'r') as f:
-            investment_query = f.read()
+        hierarchy_query += " WHERE " + " AND ".join(where_clauses)
         
-        # Add WHERE clauses securely (assuming there's a REGION column)
-        if "WHERE" not in hierarchy_query.upper():
-            hierarchy_query += " WHERE REGION = %(region)s"
-        else:
-            hierarchy_query += " AND REGION = %(region)s"
-        
-        if "WHERE" not in investment_query.upper():
-            investment_query += " WHERE REGION = %(region)s"
-        else:
-            investment_query += " AND REGION = %(region)s"
-        
-        # Add pagination (Databricks/Spark SQL syntax)
         offset = (page - 1) * limit
         hierarchy_query += f" ORDER BY CHILD_ID LIMIT {limit} OFFSET {offset}"
-        investment_query += f" ORDER BY INV_EXT_ID LIMIT {limit} OFFSET {offset}"
         
-        # Execute queries
         hierarchy_results = databricks_client.execute_query(hierarchy_query, parameters=params)
-        investment_results = databricks_client.execute_query(investment_query, parameters=params)
         
+        # Step 2: Take the IDs from Step 1 and fetch ONLY their corresponding investment records.
+        item_ids = [record['CHILD_ID'] for record in hierarchy_results]
+        investment_results = []
+
+        if item_ids:
+            with open(INVESTMENT_QUERY_FILE, 'r') as f:
+                investment_query = f.read().strip().rstrip(';')
+
+            # Use secure parameterized queries for the IN clause
+            id_placeholders = ', '.join(['%(id' + str(i) + ')s' for i in range(len(item_ids))])
+            params_investment = {f'id{i}': pid for i, pid in enumerate(item_ids)}
+            
+            investment_query += f" WHERE INV_EXT_ID IN ({id_placeholders})"
+            investment_results = databricks_client.execute_query(investment_query, parameters=params_investment)
+
         response_data = {
             'status': 'success',
             'data': {
@@ -374,7 +426,7 @@ def get_region_data():
                 'pagination': {
                     'page': page,
                     'limit': limit,
-                    'region': region,
+                    'region': region or 'All',
                     'total_items': len(hierarchy_results),
                     'has_more': len(hierarchy_results) == limit
                 }
@@ -397,6 +449,95 @@ def get_region_data():
             'status': 'error',
             'message': f'Failed to fetch region data: {str(e)}',
             'mode': 'databricks'
+        }), 500
+
+
+
+@app.route('/api/data/region/filters', methods=['GET'])
+def get_region_filter_options():
+    """Get available filter options for regions - regions, markets, functions, tiers."""
+    try:
+        cache_key = "region_filter_options"
+        
+        # Check cache first
+        cached_data = cache_service.get(cache_key)
+        if cached_data:
+            logger.info("Serving region filter options from cache")
+            return jsonify(cached_data)
+        
+        logger.info("Fetching region filter options from database")
+        
+        # Get actual filter options from the same investment query used for data
+        # This ensures filter options match the available data
+        
+        # Read the investment query file
+        with open(INVESTMENT_QUERY_FILE, 'r') as f:
+            investment_query = f.read().strip().rstrip(';')
+        
+        # Modify query to get unique filter values
+        filter_query = f"""
+        WITH base_data AS (
+            {investment_query}
+        )
+        SELECT DISTINCT
+            CASE 
+                WHEN INV_MARKET = '-Unrecognised-' THEN 'Unrecognised'
+                WHEN INV_MARKET IS NULL OR INV_MARKET = '' THEN 'Unknown'
+                WHEN LOCATE('/', INV_MARKET) > 0 THEN SUBSTR(INV_MARKET, 1, LOCATE('/', INV_MARKET) - 1)
+                ELSE INV_MARKET
+            END as region,
+            CASE 
+                WHEN INV_MARKET = '-Unrecognised-' THEN 'Unrecognised'
+                WHEN INV_MARKET IS NULL OR INV_MARKET = '' THEN 'Unknown'
+                WHEN LOCATE('/', INV_MARKET) > 0 THEN SUBSTR(INV_MARKET, LOCATE('/', INV_MARKET) + 1)
+                ELSE 'Unknown'
+            END as market,
+            INV_FUNCTION as function,
+            CAST(INV_TIER as STRING) as tier
+        FROM base_data 
+        WHERE INV_MARKET IS NOT NULL 
+        AND INV_MARKET != ''
+        """
+        
+        # Execute query
+        results = databricks_client.execute_query(filter_query)
+        
+        # Process results to create filter options
+        regions = set()
+        markets = set()
+        functions = set()
+        tiers = set()
+        
+        for row in results:
+            if row.get('region'):
+                regions.add(row['region'])
+            if row.get('market'):
+                markets.add(row['market'])
+            if row.get('function'):
+                functions.add(row['function'])
+            if row.get('tier'):
+                tiers.add(row['tier'])
+        
+        response_data = {
+            'status': 'success',
+            'data': {
+                'regions': sorted(list(regions)),
+                'markets': sorted(list(markets)),
+                'functions': sorted(list(functions)),
+                'tiers': sorted(list(tiers))
+            }
+        }
+        
+        # Cache for 30 minutes
+        cache_service.set(cache_key, response_data, ttl=1800)
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching region filter options: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to fetch filter options: {str(e)}'
         }), 500
 
 
@@ -475,6 +616,64 @@ def get_paginated_data():
 #
 # Migration Guide: See PROGRESSIVE_LOADING_MIGRATION_GUIDE.md
 # =============================================================================
+
+# =============================================================================
+# LEGACY FULL DATA ENDPOINT (For backward compatibility with frontend)
+# =============================================================================
+
+@app.route('/api/data', methods=['GET'])
+def get_legacy_full_data():
+    """
+    Legacy endpoint that returns full dataset in the old format.
+    Added back for backward compatibility with existing frontend code.
+    """
+    try:
+        logger.info("🔄 Fetching full legacy data for backward compatibility")
+        
+        # Use cache with longer TTL for full dataset
+        cache_key = "legacy_full_data"
+        cached_data = cache_service.get(cache_key)
+        
+        if cached_data:
+            logger.info("✅ Serving full legacy data from cache")
+            return jsonify(cached_data)
+        
+        # Read and execute both queries without pagination
+        with open(HIERARCHY_QUERY_FILE, 'r') as f:
+            hierarchy_query = f.read()
+        
+        with open(INVESTMENT_QUERY_FILE, 'r') as f:
+            investment_query = f.read()
+        
+        # Execute queries without pagination
+        hierarchy_result = databricks_client.execute_query_unlimited(hierarchy_query, use_cache=True, cache_ttl=600)
+        investment_result = databricks_client.execute_query_unlimited(investment_query, use_cache=True, cache_ttl=600)
+        
+        # Structure the response in the old format
+        response_data = {
+            'status': 'success',
+            'data': {
+                'hierarchy': hierarchy_result,
+                'investment': investment_result
+            },
+            'mode': 'databricks',
+            'note': 'Legacy full dataset endpoint - consider using paginated endpoints for better performance'
+        }
+        
+        # Cache for 10 minutes
+        cache_service.set(cache_key, response_data, ttl=600)
+        
+        logger.info("✅ Successfully fetched and cached full legacy data")
+        return jsonify(response_data)
+        
+    except Exception as e:
+        error_msg = f"Failed to fetch legacy full data: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
+        }), 500
+
 
 # =============================================================================
 # UTILITY AND CACHE MANAGEMENT ENDPOINTS

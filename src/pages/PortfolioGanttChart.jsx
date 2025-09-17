@@ -179,6 +179,7 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
     const leftPanelScrollRef = useRef(null);
+    const scrollPositionRef = useRef(0); // Store scroll position during loading
 
     const { startDate } = getTimelineRange();
     console.log('� Responsive constants:', responsiveConstants);
@@ -225,9 +226,9 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [hasMore, setHasMore] = useState(true);
-    const itemsPerPage = 20; // Load 20 items at a time
+    const itemsPerPage = 25; // Reduced from 50 to 25 for faster initial load
     
-    // Load data progressively from API
+    // Load data from API with progressive loading (FIXED: No more brute-force loading)
     useEffect(() => {
         let isCurrentRequest = true;
         
@@ -236,14 +237,15 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                 setLoading(true);
                 setError(null);
                 
-                const response = await fetchPortfolioData(1, itemsPerPage);
-                console.log('📥 Initial data loaded:', response);
+                // CRITICAL FIX: Load only the FIRST page instead of all 1000 records
+                const response = await fetchPortfolioData(1, itemsPerPage); // Start with reasonable page size
+                console.log('📥 Initial portfolio data loaded:', response);
                 
                 if (isCurrentRequest) {
                     setProcessedData(response.data);
-                    setFilteredData(response.data); // This is already processed data from fetchPortfolioData
+                    setFilteredData(response.data);
                     setTotalItems(response.totalCount);
-                    setHasMore(response.hasMore);
+                    setHasMore(response.hasMore); // Use backend pagination info
                     setCurrentPage(1);
 
                     // Initial scroll to show current month - 1
@@ -276,19 +278,36 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
         };
     }, []);
 
-    // Load more data function
+    // Load more data function - now preserves scroll position
     const loadMoreData = async () => {
         if (!hasMore || loading) return;
+        
+        // CRITICAL FIX: Store current scroll position before loading new data
+        if (ganttScrollRef.current) {
+            scrollPositionRef.current = ganttScrollRef.current.scrollLeft;
+        }
         
         try {
             setLoading(true);
             const nextPage = currentPage + 1;
+            
+            // The fetchPortfolioData now uses cache, so this is much faster
             const response = await fetchPortfolioData(nextPage, itemsPerPage);
             
-            setProcessedData(prev => [...prev, ...response.data]);
-            setFilteredData(prev => [...prev, ...response.data]);
+            // Only append new data if it's not already loaded
+            const newData = response.data.filter(newItem => 
+                !processedData.some(existingItem => existingItem.id === newItem.id)
+            );
+            
+            if (newData.length > 0) {
+                setProcessedData(prev => [...prev, ...newData]);
+                setFilteredData(prev => [...prev, ...newData]);
+            }
+            
             setCurrentPage(nextPage);
             setHasMore(response.hasMore);
+            
+            console.log(`📄 Page ${nextPage} loaded from ${response.fromCache ? 'cache' : 'API'}: ${response.data.length} items`);
         } catch (err) {
             console.error('Failed to load more data:', err);
             setError(err.message);
@@ -316,6 +335,18 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             leftPanelScrollRef.current.scrollTop = scrollTop;
         }
     };
+
+    // CRITICAL FIX: Restore scroll position after data is loaded
+    useEffect(() => {
+        if (!loading && ganttScrollRef.current && scrollPositionRef.current > 0) {
+            setTimeout(() => {
+                ganttScrollRef.current.scrollLeft = scrollPositionRef.current;
+                if (timelineScrollRef.current) {
+                    timelineScrollRef.current.scrollLeft = scrollPositionRef.current;
+                }
+            }, 50); // Small delay to ensure DOM is updated
+        }
+    }, [processedData, loading]); // Runs when data changes and loading stops
 
     const handleLeftPanelScroll = (e) => {
         const scrollTop = e.target.scrollTop;
@@ -349,15 +380,18 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
             projectScale: responsiveConstants.PROJECT_SCALE
         });
         
-        const projectScale = responsiveConstants.PROJECT_SCALE;
-        if (projectScale >= 1.0) {
-            // Normal or zoomed out - show all or more projects
-            return safeFilteredData;
-        } else {
-            // Zoomed in (PROJECT_SCALE < 1.0) - show fewer projects
-            const targetCount = Math.max(1, Math.round(safeFilteredData.length * projectScale));
-            return safeFilteredData.slice(0, targetCount);
-        }
+        // For portfolio view, show all data regardless of zoom level
+        // This ensures that no records are hidden due to scaling
+        return safeFilteredData;
+        
+        // Original scaling logic commented out - caused missing records
+        // const projectScale = responsiveConstants.PROJECT_SCALE;
+        // if (projectScale >= 1.0) {
+        //     return safeFilteredData;
+        // } else {
+        //     const targetCount = Math.max(1, Math.round(safeFilteredData.length * projectScale));
+        //     return safeFilteredData.slice(0, targetCount);
+        // }
     };
 
     const calculateMilestoneLabelHeight = (milestones, monthWidth = 100) => {
@@ -453,11 +487,12 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
 
     const getTotalHeight = () => {
         const scaledData = getScaledFilteredData();
-        const ultraMinimalSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing between rows
+        const minimalRowSpacing = Math.round(2 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Synchronized spacing
+        const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Synchronized top margin
         return scaledData.reduce((total, project) => {
             const barHeight = calculateBarHeight(project);
-            return total + barHeight + ultraMinimalSpacing;
-        }, Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0))); // Absolute minimum top margin - just enough to prevent clipping
+            return total + barHeight + minimalRowSpacing;
+        }, topMargin);
     };
 
     return (
@@ -711,9 +746,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             const scaledData = getScaledFilteredData();
                             console.log('🎨 Rendering project:', index, project.name, project);
                             
-                            const minimalRowSpacing = Math.round(1 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Ultra-minimal spacing
-                            // Make first row top margin more compact
-                            const topMargin = index === 0 ? Math.round(16 * (responsiveConstants.ZOOM_LEVEL || 1.0)) : 0;
+                            const minimalRowSpacing = Math.round(2 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Synchronized with right panel
+                            const topMargin = Math.round(8 * (responsiveConstants.ZOOM_LEVEL || 1.0)); // Synchronized with right panel
                             const yOffset = scaledData
                                 .slice(0, index)
                                 .reduce((total, p) => total + calculateBarHeight(p) + minimalRowSpacing, topMargin);
@@ -721,17 +755,17 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                             return (
                                 <div
                                     key={project.id}
-                                    className={`absolute flex items-start border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors ${
+                                    className={`absolute flex items-center border-b border-gray-100 bg-gray-50/30 hover:bg-gray-100/50 transition-colors ${
                                         project.isDrillable ? 'cursor-pointer hover:bg-blue-50/50' : 'cursor-default'
                                     }`}
                                     style={{
                                         top: yOffset,
                                         height: calculateBarHeight(project),
                                         paddingLeft: responsiveConstants.TOUCH_TARGET_SIZE > 24 ? '12px' : '8px',
-                                        paddingTop: '2px', // Minimal top padding - just enough to avoid clipping
+                                        paddingRight: '8px',
                                         fontSize: responsiveConstants.FONT_SIZE,
                                         width: '100%',
-                                        minHeight: Math.round(28 * (responsiveConstants.ZOOM_LEVEL || 1.0)) // Reduced minimum height
+                                        minHeight: Math.round(28 * (responsiveConstants.ZOOM_LEVEL || 1.0))
                                     }}
                                     onClick={() => {
                                         if (project.isDrillable && onDrillToProgram) {
@@ -739,8 +773,8 @@ const PortfolioGanttChart = ({ onDrillToProgram }) => {
                                         }
                                     }}
                                 >
-                                    <div className="flex items-center justify-between w-full">
-                                        <div className="flex flex-col justify-center">
+                                    <div className="flex items-center justify-between w-full h-full">
+                                        <div className="flex items-center justify-center h-full">
                                             <div className="flex items-center">
                                                 <span className={`font-medium pr-2 ${
                                                     project.isDrillable ? 'text-blue-700 hover:text-blue-800' : 'text-gray-800'

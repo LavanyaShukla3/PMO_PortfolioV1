@@ -195,9 +195,15 @@ def get_subprogram_data():
         with open(INVESTMENT_QUERY_FILE, 'r') as f:
             investment_query = f.read()
         
-        # Filter for specific program and subprogram level
-        hierarchy_query += f" AND COE_ROADMAP_PARENT_ID = '{program_id}' AND COE_ROADMAP_TYPE = 'SubProgram'"
-        investment_query += f" AND INVESTMENT_ID LIKE '{program_id}%'"
+        # Filter for specific program and subprogram level, or all if program_id is 'ALL'
+        if program_id.upper() == 'ALL':
+            # Load all sub-program data
+            hierarchy_query += " AND COE_ROADMAP_TYPE = 'SubProgram'"
+            # Don't filter investment query for specific program
+        else:
+            # Filter for specific program and subprogram level
+            hierarchy_query += f" AND COE_ROADMAP_PARENT_ID = '{program_id}' AND COE_ROADMAP_TYPE = 'SubProgram'"
+            investment_query += f" AND INVESTMENT_ID LIKE '{program_id}%'"
         
         # Add pagination
         offset = (page - 1) * limit

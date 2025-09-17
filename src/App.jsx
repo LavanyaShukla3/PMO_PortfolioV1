@@ -156,6 +156,7 @@ function App() {
                             selectedSubProgramId={selectedSubProgramId}
                             selectedSubProgramName={selectedSubProgramName}
                             selectedProgramName={selectedPortfolioName} // Pass portfolio name for breadcrumb context
+                            selectedProgramId={selectedPortfolioId} // Pass program ID for API calls
                             onNavigateUp={() => {
                                 setCurrentView('Program');
                                 setSelectedSubProgramId(null);

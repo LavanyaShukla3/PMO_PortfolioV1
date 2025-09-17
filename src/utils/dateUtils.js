@@ -168,13 +168,14 @@ export const calculatePosition = (date, startDate, monthWidth = MONTH_WIDTH) => 
  * @param {Array} milestones - Array of milestone objects with date property
  * @returns {Object} Object with month keys (YYYY-MM format) and milestone arrays as values
  */
-export const groupMilestonesByMonth = (milestones) => {
+export const groupMilestonesByMonth = (milestones, dateKey = 'date') => {
     if (!milestones?.length) return {};
 
     const groups = {};
 
     milestones.forEach(milestone => {
-        const date = parseDate(milestone.date);
+        // Use the specified dateKey to get the date string
+        const date = parseDate(milestone[dateKey]);
         if (!date) return;
 
         const monthKey = `${getYear(date)}-${String(getMonth(date) + 1).padStart(2, '0')}`;

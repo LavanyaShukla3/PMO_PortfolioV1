@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import TimelineAxis from '../components/TimelineAxis';
 import MilestoneMarker from '../components/MilestoneMarker';
 import { getTimelineRange, parseDate, calculatePosition, calculateMilestonePosition, groupMilestonesByMonth, getMonthlyLabelPosition, createVerticalMilestoneLabels, getInitialScrollPosition, truncateLabel } from '../utils/dateUtils';
-import { processProgramData } from '../services/apiDataService';
+import { fetchProgramData } from '../services/progressiveApiService';
 import { differenceInDays } from 'date-fns';
 
 // Zoom levels configuration
@@ -183,6 +183,11 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [dataVersion, setDataVersion] = useState(0); // Add version tracking for re-renders
+    // Progressive loading state
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
 
     const timelineScrollRef = useRef(null);
     const ganttScrollRef = useRef(null);
@@ -227,31 +232,47 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
         setZoomLevel(1.0);
     };
 
-    // Load data from API
+    // Load data from API - Load all data to ensure missing records are found
     useEffect(() => {
-        const loadData = async () => {
+        let isCurrentRequest = true;
+        
+        const loadAllData = async () => {
             try {
                 setLoading(true);
                 setError(null);
                 
-                const data = await processProgramData(selectedPortfolioId);
-                setProcessedData(data);
-                setFilteredData(data);
-                setDataVersion(prev => prev + 1); // Increment version to trigger re-render
+                console.log('🔄 Loading all program data for portfolio:', selectedPortfolioId);
+                // Load all data in first request to ensure we see all programs
+                const response = await fetchProgramData(selectedPortfolioId, { 
+                    page: 1, 
+                    limit: 1000  // Large limit to get all records
+                });
+                console.log('📥 All program data loaded:', response);
+                
+                if (isCurrentRequest) {
+                    setProcessedData(response.data);
+                    setFilteredData(response.data);
+                    setTotalRecords(response.totalCount);
+                    setHasMore(false); // We loaded everything
+                    setCurrentPage(1);
+                    setDataVersion(prev => prev + 1); // Increment version to trigger re-render
 
-                // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
-                setTimeout(() => {
-                    if (timelineScrollRef.current) {
-                        // Use utility function to calculate proper scroll position
-                        const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
+                    console.log(`✅ Program data loaded: ${response.data.length} items from ${response.fromCache ? 'cache' : 'API'}`);
 
-                        timelineScrollRef.current.scrollLeft = scrollPosition;
-                        // Sync gantt scroll position
-                        if (ganttScrollRef.current) {
-                            ganttScrollRef.current.scrollLeft = scrollPosition;
+                    // Initial scroll to show current month - 1 (Aug 2025 if current is Sep 2025)
+                    setTimeout(() => {
+                        if (timelineScrollRef.current) {
+                            // Use utility function to calculate proper scroll position
+                            const scrollPosition = getInitialScrollPosition(responsiveConstants.MONTH_WIDTH);
+
+                            timelineScrollRef.current.scrollLeft = scrollPosition;
+                            // Sync gantt scroll position
+                            if (ganttScrollRef.current) {
+                                ganttScrollRef.current.scrollLeft = scrollPosition;
+                            }
                         }
-                    }
-                }, 100);
+                    }, 100);
+                }
             } catch (err) {
                 console.error('❌ Failed to load program data from API:', err);
                 setError(err.message);
@@ -260,8 +281,50 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
             }
         };
 
-        loadData();
+        // Always load data - null means "All Programs"
+        loadAllData();
+        
+        return () => {
+            isCurrentRequest = false;
+        };
     }, [selectedPortfolioId, responsiveConstants.MONTH_WIDTH]);
+
+    // Load more data function - now uses cached data for better performance
+    const loadMoreData = async () => {
+        if (loadingMore || !hasMore) return;
+
+        try {
+            setLoadingMore(true);
+            const nextPage = currentPage + 1;
+            
+            console.log('🔄 Loading more program data, page:', nextPage);
+            // The fetchProgramData now uses cache, so this is much faster
+            const response = await fetchProgramData(selectedPortfolioId, { page: nextPage, limit: 50 });
+            
+            // Only append new data if it's not already loaded
+            const newData = response.data.filter(newItem => 
+                !processedData.some(existingItem => existingItem.id === newItem.id)
+            );
+            
+            if (newData.length > 0) {
+                setProcessedData(prev => [...prev, ...newData]);
+                setFilteredData(prev => [...prev, ...newData]);
+            }
+            
+            setHasMore(response.hasMore);
+            setCurrentPage(nextPage);
+            setTotalRecords(response.totalCount);
+            
+            console.log(`📄 Program page ${nextPage} loaded from ${response.fromCache ? 'cache' : 'API'}: ${response.data.length} items`);
+            
+            console.log('✅ More program data loaded:', response.data.length, 'new items. Total:', updatedData.length);
+        } catch (err) {
+            console.error('❌ Failed to load more program data:', err);
+            setError(err.message);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     // Scroll synchronization handlers
     const handleTimelineScroll = (e) => {
@@ -501,12 +564,12 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
     };
 
     return (
-        <div className="w-full flex flex-col">
-            {/* Loading State */}
-            {loading && (
-                <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <span className="ml-3">Loading program data...</span>
+        <div className="w-full flex flex-col relative">
+            {/* Status Badge - Top Right */}
+            {(loading || loadingMore) && (
+                <div className="absolute top-4 right-4 z-50 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium shadow-md flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                    {loading ? 'Loading data...' : 'Loading more...'}
                 </div>
             )}
 
@@ -524,8 +587,8 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                 </div>
             )}
 
-            {/* Main Content - Only show when not loading and no error */}
-            {!loading && !error && (
+            {/* Main Content - Show when data is available (even while loading more) */}
+            {(processedData.length > 0 || !loading) && !error && (
             <>
             {/* Breadcrumb Navigation */}
             <div className="flex-shrink-0 p-2 sm:p-4">
@@ -914,6 +977,26 @@ const ProgramGanttChart = ({ selectedPortfolioId, selectedPortfolioName, onBackT
                     </div>
                 </div>
             </div>
+
+            {/* Load More Button */}
+            {hasMore && !loading && (
+                <div className="flex justify-center p-4">
+                    <button
+                        onClick={loadMoreData}
+                        disabled={loadingMore}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {loadingMore ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Loading...
+                            </>
+                        ) : (
+                            `Load More Data (${totalRecords - processedData.length} remaining)`
+                        )}
+                    </button>
+                </div>
+            )}
             </>
             )}
         </div>
